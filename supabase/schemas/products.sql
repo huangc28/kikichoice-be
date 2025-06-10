@@ -3,7 +3,7 @@ CREATE TABLE products
 (
   id BIGSERIAL PRIMARY KEY,
   uuid VARCHAR NOT NULL DEFAULT gen_random_uuid() UNIQUE,
-  sku VARCHAR(100) NOT NULL UNIQUE,
+  sku VARCHAR(100) NOT NULL,
   name VARCHAR(255) NOT NULL,
   price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
   original_price DECIMAL(10,2) CHECK (original_price >= 0),
