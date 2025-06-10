@@ -1,5 +1,6 @@
 import type { ProductRow } from "./fetch-sheet-data.ts";
 import client from "#shared/db.js";
+import { generateProductBatchParams } from "#shared/sql-batch-utils.js";
 
 export const upsertProducts = async (products: ProductRow[]): Promise<{
   inserted: number;
@@ -51,7 +52,7 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
     return finalResult;
   } catch (error) {
     console.error("❌ Error during batch upsert:", error);
-    throw new Error(`Database upsert failed: ${error.message}`);
+    throw new Error(`Database upsert failed: ${error}`);
   }
 };
 
@@ -61,24 +62,7 @@ const processBatch = async (products: ProductRow[]): Promise<{
   updated: number;
   total: number;
 }> => {
-  // Build the VALUES clause with parameterized queries
-  const valuesClause = products.map((_, index) => {
-    const baseIndex = index * 7; // 7 fields per product
-    return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${
-      baseIndex + 4
-    }, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, NOW())`;
-  }).join(", ");
-
-  // Flatten all product values into a single array
-  const values = products.flatMap((product) => [
-    product.uuid,
-    product.sku,
-    product.name,
-    product.ready_for_sale,
-    product.stock_count,
-    product.price,
-    product.short_desc,
-  ]);
+  const { valuesClause, values } = generateProductBatchParams(products);
 
   const query = `
     WITH upsert_result AS (

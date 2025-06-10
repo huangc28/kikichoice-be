@@ -1,17 +1,12 @@
 import { Inngest, NonRetriableError } from "inngest";
+import type { GetFunctionInput } from "inngest";
 import { tryCatch } from "#shared/try-catch.js";
 import { upsertProducts } from "./upsert-products.js";
 import { fetchSheetData } from "./fetch-sheet-data.js";
 
-export const syncFunc = async ({ step }) => {
+export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
   const [products, fetchError] = await tryCatch(
-    step.run("fetch-sheet-data", async () => {
-      const products = await fetchSheetData();
-
-      console.log("products", products);
-
-      return products;
-    }),
+    step.run("fetch-sheet-data", async () => fetchSheetData()),
   );
 
   if (fetchError) {
@@ -36,9 +31,9 @@ export const syncFunc = async ({ step }) => {
   }
 
   return {
-    inserted: result.inserted,
-    updated: result.updated,
-    total: result.total,
+    inserted: result?.inserted || 0,
+    updated: result?.updated || 0,
+    total: result?.total || 0,
   };
 };
 
@@ -48,7 +43,7 @@ export const syncInventory = (inngest: Inngest) => {
       id: "sync-inventory",
       retries: 3,
     },
-    { cron: "*/15 * * * *" }, // every 15 minutes
+    { cron: "*/30 * * * *" }, // every 30 minutes
     syncFunc,
   );
 };
