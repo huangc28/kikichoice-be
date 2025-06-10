@@ -1,10 +1,11 @@
 import express from "express";
 import { Inngest } from "inngest";
 import { serve } from "inngest/express";
+import { env } from "./_shared/env";
 import { syncInventory } from "./_inngest/sync-inventory/main";
 
 const app = express();
-const inngest = new Inngest({ id: "" });
+const inngest = new Inngest({ id: env.INNGEST_APP_ID });
 
 app.use(
   "/api/inngest",

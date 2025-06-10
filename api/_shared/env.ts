@@ -30,6 +30,8 @@ const envSchema = z.object({
   GOOGLE_SHEET_RANGE: z.string().default(""),
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().default(""),
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().default(""),
+
+  INNGEST_APP_ID: z.string().default(""),
 });
 
 // Infer the TypeScript type from the Zod schema

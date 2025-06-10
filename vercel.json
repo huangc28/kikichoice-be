@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["sfo1", "lhr1", "sin1"],
+  "regions": ["sin1"],
   "functions": {
     "api/**/*.go": {
       "memory": 1024,
