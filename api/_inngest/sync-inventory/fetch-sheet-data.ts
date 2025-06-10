@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { env } from "#shared/env.ts";
+import { env } from "#shared/env.js";
 
 export interface ProductRow {
   sku: string;
@@ -50,7 +50,7 @@ export const fetchSheetData = async (): Promise<ProductRow[]> => {
       .filter(filterEmptyUUID);
   } catch (error) {
     console.error("Error fetching sheet data:", error);
-    throw new Error(`Failed to fetch sheet data: ${error.message}`);
+    throw new Error(`Failed to fetch sheet data: ${error}`);
   }
 };
 
