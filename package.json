@@ -18,5 +18,8 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
