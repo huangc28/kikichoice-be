@@ -1,13 +1,12 @@
 {
-  "imports": {
-    "#shared/*": "./api/_shared/*",
-    "#api/*": "./api/*"
-  },
   "scripts": {
     "test": "vitest",
     "test:run": "vitest run"
   },
-
+  "imports": {
+    "#shared/*": "./api/_shared/*",
+    "#api/*": "./api/*"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "googleapis": "^150.0.1",

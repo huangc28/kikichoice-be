@@ -1,7 +1,7 @@
 import express from "express";
 import { Inngest } from "inngest";
 import { serve } from "inngest/express";
-import { env } from "./_shared/env";
+import { env } from "#shared/env.js";
 import { syncInventory } from "./_inngest/sync-inventory/main";
 
 const app = express();
