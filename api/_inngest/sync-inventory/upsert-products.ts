@@ -1,7 +1,8 @@
 import client from "#shared/db.js";
 import { generateSqlBatchParams } from "#shared/sql-batch-utils.js";
+import { generateShortId } from "#shared/shortid.js";
+
 import type { ProductRow, ProductWithUUID } from "./types.js";
-import { nanoid } from "nanoid";
 
 export const upsertProducts = async (products: ProductRow[]): Promise<{
   inserted: number;
@@ -124,7 +125,7 @@ const processBatch = async (products: ProductRow[]): Promise<{
 }> => {
   const productsWithUuids = products.map((product) => ({
     ...product,
-    uuid: nanoid(),
+    uuid: generateShortId(16),
   }));
 
   const { valuesClause, values } = generateProductBatchParams(
