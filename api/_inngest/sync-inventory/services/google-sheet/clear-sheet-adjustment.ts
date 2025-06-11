@@ -16,7 +16,6 @@ export const clearSheetAdjustment = async (processedSkus: string[]) => {
 
     const rows = sheetData.data.values || [];
     const updates = findStockAdjustmentRowsToClear(rows, processedSkus);
-    console.log("** updates", JSON.stringify(updates, null, 2));
 
     if (updates.length > 0) {
       await client.spreadsheets.values.batchUpdate({

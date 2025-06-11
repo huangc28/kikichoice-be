@@ -6,10 +6,11 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
   inserted: number;
   updated: number;
   total: number;
+  updatedProducts: Array<{ sku: string; stock_count: number }>;
 }> => {
   if (products.length === 0) {
     console.info("No products to update");
-    return { inserted: 0, updated: 0, total: 0 };
+    return { inserted: 0, updated: 0, total: 0, updatedProducts: [] };
   }
 
   // Deduplicate products by SKU to avoid conflict errors
@@ -59,6 +60,7 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
     let totalInserted = 0;
     let totalUpdated = 0;
     let totalProcessed = 0;
+    const allUpdatedProducts: Array<{ sku: string; stock_count: number }> = [];
 
     // Process each batch
     for (const [batchIndex, batch] of batches.entries()) {
@@ -73,12 +75,14 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
       totalInserted += result.inserted;
       totalUpdated += result.updated;
       totalProcessed += result.total;
+      allUpdatedProducts.push(...result.updatedProducts);
     }
 
     const finalResult = {
       inserted: totalInserted,
       updated: totalUpdated,
       total: totalProcessed,
+      updatedProducts: allUpdatedProducts,
     };
 
     console.log("✅ Batch upsert completed:", finalResult);
@@ -115,6 +119,7 @@ const processBatch = async (products: ProductRow[]): Promise<{
   inserted: number;
   updated: number;
   total: number;
+  updatedProducts: Array<{ sku: string; stock_count: number }>;
 }> => {
   // Import nanoid dynamically since it's an ES module
   const { nanoid } = await import("nanoid");
@@ -150,22 +155,35 @@ const processBatch = async (products: ProductRow[]): Promise<{
         short_desc = EXCLUDED.short_desc,
         updated_at = NOW()
       RETURNING
-        uuid,
+        sku,
+        stock_count,
         (xmax = 0) AS inserted
     )
     SELECT
-      COUNT(*) FILTER (WHERE inserted = true) as inserted_count,
-      COUNT(*) FILTER (WHERE inserted = false) as updated_count,
-      COUNT(*) as total_count
+      sku,
+      stock_count,
+      inserted
     FROM upsert_result;
   `;
 
   const result = await client.query(query, values);
-  const stats = result.rows[0];
+  const rows = result.rows;
+
+  // Calculate statistics from the returned rows
+  const inserted = rows.filter((row) => row.inserted === true).length;
+  const updated = rows.filter((row) => row.inserted === false).length;
+  const total = rows.length;
+
+  // Extract updated products info
+  const updatedProducts = rows.map((row) => ({
+    sku: row.sku,
+    stock_count: parseInt(row.stock_count),
+  }));
 
   return {
-    inserted: parseInt(stats.inserted_count || 0),
-    updated: parseInt(stats.updated_count || 0),
-    total: parseInt(stats.total_count || 0),
+    inserted,
+    updated,
+    total,
+    updatedProducts,
   };
 };
