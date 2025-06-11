@@ -4,7 +4,6 @@ import { env } from "#shared/env.js";
 export interface ProductRow {
   sku: string;
   name: string;
-  uuid: string;
   ready_for_sale: boolean;
   stock_count: number;
   price: number;
@@ -43,11 +42,10 @@ export const fetchSheetData = async (): Promise<ProductRow[]> => {
 
     const rows = response.data.values || [];
 
-    console.info("number of rows", rows.length);
+    console.info("number of products", rows.length);
 
     return rows
-      .map(transformRowToProduct)
-      .filter(filterEmptyUUID);
+      .map(transformRowToProduct);
   } catch (error) {
     console.error("Error fetching sheet data:", error);
     throw new Error(`Failed to fetch sheet data: ${error}`);
@@ -55,18 +53,12 @@ export const fetchSheetData = async (): Promise<ProductRow[]> => {
 };
 
 function transformRowToProduct(row: string[]): ProductRow {
-  console.info("** row", row);
   return {
     sku: (row[0] || "").trim(),
-    uuid: (row[1] || "").trim(),
-    name: (row[2] || "").trim(),
-    ready_for_sale: (row[3] || "").trim() === "Y",
-    stock_count: parseInt((row[7] || "0").trim()) || 0,
-    price: parseFloat((row[11] || "0").trim()) || 0,
-    short_desc: (row[4] || "").trim(),
+    name: (row[1] || "").trim(),
+    ready_for_sale: (row[2] || "").trim() === "Y",
+    short_desc: (row[3] || "").trim(),
+    stock_count: parseInt((row[6] || "0").trim()) || 0,
+    price: parseFloat((row[10] || "0").trim()) || 0,
   };
-}
-
-function filterEmptyUUID(products: ProductRow) {
-  return products.uuid !== "";
 }
