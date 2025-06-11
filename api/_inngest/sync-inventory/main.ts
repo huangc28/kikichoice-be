@@ -7,7 +7,7 @@ import { syncSheetCurrentStock } from "./services/google-sheet/sync-sheet-curren
 
 export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
   const [products, fetchError] = await tryCatch(
-    step.run("fetch-sheet-data", async () => fetchSheetData()),
+    step.run("fetch-sheet-data", fetchSheetData),
   );
 
   if (fetchError) {

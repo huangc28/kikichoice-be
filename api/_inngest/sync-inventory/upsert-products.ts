@@ -1,6 +1,7 @@
 import client from "#shared/db.js";
 import { generateSqlBatchParams } from "#shared/sql-batch-utils.js";
 import type { ProductRow, ProductWithUUID } from "./types.js";
+import { nanoid } from "nanoid";
 
 export const upsertProducts = async (products: ProductRow[]): Promise<{
   inserted: number;
@@ -121,9 +122,6 @@ const processBatch = async (products: ProductRow[]): Promise<{
   total: number;
   updatedProducts: Array<{ sku: string; stock_count: number }>;
 }> => {
-  // Import nanoid dynamically since it's an ES module
-  const { nanoid } = await import("nanoid");
-
   const productsWithUuids = products.map((product) => ({
     ...product,
     uuid: nanoid(),
