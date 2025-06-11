@@ -1,14 +1,6 @@
 import { google } from "googleapis";
 import { env } from "#shared/env.js";
-
-export interface ProductRow {
-  sku: string;
-  name: string;
-  ready_for_sale: boolean;
-  stock_count: number;
-  price: number;
-  short_desc: string;
-}
+import type { ProductRow } from "./type.js";
 
 // Google Sheets API client setup
 const getGoogleSheetsClient = () => {

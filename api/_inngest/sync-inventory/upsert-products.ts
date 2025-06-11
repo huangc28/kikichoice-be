@@ -1,6 +1,6 @@
-import type { ProductRow } from "./fetch-sheet-data.ts";
 import client from "#shared/db.js";
-import { generateProductBatchParams } from "#shared/sql-batch-utils.js";
+import { generateSqlBatchParams } from "#shared/sql-batch-utils.js";
+import type { ProductRow, ProductWithUUID } from "./type.js";
 
 export const upsertProducts = async (products: ProductRow[]): Promise<{
   inserted: number;
@@ -12,23 +12,12 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
     return { inserted: 0, updated: 0, total: 0 };
   }
 
-  // Import nanoid dynamically since it's an ES module
-  const { nanoid } = await import("nanoid");
-
-  // Generate UUIDs for products that don't have them
-  const productsWithUuids = products.map((product) => ({
-    ...product,
-    uuid: product.uuid || nanoid(),
-  }));
-
-  console.info("productsWithUuids", productsWithUuids);
-
   // Deduplicate products by SKU to avoid conflict errors
   // First, track which SKUs appear multiple times
   const skuCounts = new Map<string, number>();
   const duplicateSkus: string[] = [];
 
-  productsWithUuids.forEach((product) => {
+  products.forEach((product) => {
     const count = (skuCounts.get(product.sku) || 0) + 1;
     skuCounts.set(product.sku, count);
 
@@ -38,15 +27,15 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
   });
 
   // Now deduplicate by keeping the last occurrence of each SKU
-  const uniqueProducts = productsWithUuids.reduce((acc, product) => {
+  const uniqueProducts = products.reduce((acc, product) => {
     acc.set(product.sku, product); // This will keep the last occurrence of each SKU
     return acc;
   }, new Map<string, ProductRow>());
 
   const deduplicatedProducts = Array.from(uniqueProducts.values());
 
-  if (deduplicatedProducts.length !== productsWithUuids.length) {
-    const duplicateCount = productsWithUuids.length -
+  if (deduplicatedProducts.length !== products.length) {
+    const duplicateCount = products.length -
       deduplicatedProducts.length;
     console.warn(
       `⚠️ Found ${duplicateCount} duplicate SKUs, processing ${deduplicatedProducts.length} unique products`,
@@ -100,13 +89,44 @@ export const upsertProducts = async (products: ProductRow[]): Promise<{
   }
 };
 
+/**
+ * Convenience function for common product upsert pattern
+ */
+export const generateProductBatchParams = (
+  products: Array<ProductWithUUID>,
+) => {
+  return generateSqlBatchParams({
+    records: products,
+    valueExtractor: (product) => [
+      product.uuid,
+      product.sku,
+      product.name,
+      product.ready_for_sale,
+      product.stock_count,
+      product.price,
+      product.short_desc,
+    ],
+    additionalExpressions: ["NOW()"],
+  });
+};
+
 // Process a single batch of products
 const processBatch = async (products: ProductRow[]): Promise<{
   inserted: number;
   updated: number;
   total: number;
 }> => {
-  const { valuesClause, values } = generateProductBatchParams(products);
+  // Import nanoid dynamically since it's an ES module
+  const { nanoid } = await import("nanoid");
+
+  const productsWithUuids = products.map((product) => ({
+    ...product,
+    uuid: nanoid(),
+  }));
+
+  const { valuesClause, values } = generateProductBatchParams(
+    productsWithUuids,
+  );
 
   const query = `
     WITH upsert_result AS (

@@ -91,7 +91,6 @@ export const generateSqlBatchParams = <T>(
  */
 export const generateProductBatchParams = (
   products: Array<{
-    uuid: string;
     sku: string;
     name: string;
     ready_for_sale: boolean;
@@ -103,7 +102,6 @@ export const generateProductBatchParams = (
   return generateSqlBatchParams({
     records: products,
     valueExtractor: (product) => [
-      product.uuid,
       product.sku,
       product.name,
       product.ready_for_sale,
