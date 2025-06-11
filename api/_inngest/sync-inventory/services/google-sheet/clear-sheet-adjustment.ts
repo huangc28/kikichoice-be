@@ -53,7 +53,7 @@ const findStockAdjustmentRowsToClear = (
 
       updates.push({
         range: adjustmentColumnRange,
-        values: [[""]],
+        values: [["0"]],
       });
     }
   });

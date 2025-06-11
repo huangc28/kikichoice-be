@@ -116,7 +116,6 @@ const processBatch = async (products: ProductRow[]): Promise<{
   updated: number;
   total: number;
 }> => {
-  console.log("** products", products);
   // Import nanoid dynamically since it's an ES module
   const { nanoid } = await import("nanoid");
 

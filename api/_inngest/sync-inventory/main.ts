@@ -3,14 +3,12 @@ import type { GetFunctionInput } from "inngest";
 import { tryCatch } from "#shared/try-catch.js";
 import { upsertProducts } from "./upsert-products.js";
 import { fetchSheetData } from "./services/google-sheet/fetch-sheet-data.js";
-import { clearSheetAdjustment } from "./services/google-sheet/clear-sheet_adjustment.js";
+import { clearSheetAdjustment } from "./services/google-sheet/clear-sheet-adjustment.js";
 
 export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
   const [products, fetchError] = await tryCatch(
     step.run("fetch-sheet-data", async () => fetchSheetData()),
   );
-
-  console.log("** 1 products", products);
 
   if (fetchError) {
     console.error("Error fetching sheet data:", fetchError);
