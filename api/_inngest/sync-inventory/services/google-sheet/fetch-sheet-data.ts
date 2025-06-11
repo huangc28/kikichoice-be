@@ -1,31 +1,13 @@
-import { google } from "googleapis";
 import { env } from "#shared/env.js";
-import type { ProductRow } from "./type.js";
-
-// Google Sheets API client setup
-const getGoogleSheetsClient = () => {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(
-        /\\n/g,
-        "\n",
-      ),
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-
-  return google.sheets({ version: "v4", auth });
-};
+import type { ProductRow } from "../../types.js";
+import { getGoogleSheetsClient } from "./client.js";
 
 // Function to fetch data from Google Sheets
 export const fetchSheetData = async (): Promise<ProductRow[]> => {
   try {
     const sheets = getGoogleSheetsClient();
-    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    const range = process.env.GOOGLE_SHEET_RANGE || "Sheet1!A2:H1000"; // Skip header row
-
-    console.info("** 1", process.env.GOOGLE_SHEET_RANGE);
+    const spreadsheetId = env.GOOGLE_SHEET_ID;
+    const range = env.GOOGLE_SHEET_RANGE || "Sheet1!A2:H1000"; // Skip header row
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
@@ -50,7 +32,7 @@ function transformRowToProduct(row: string[]): ProductRow {
     name: (row[1] || "").trim(),
     ready_for_sale: (row[2] || "").trim() === "Y",
     short_desc: (row[3] || "").trim(),
-    stock_count: parseInt((row[6] || "0").trim()) || 0,
-    price: parseFloat((row[10] || "0").trim()) || 0,
+    stock_adjust_count: parseInt((row[6] || "0").trim()) || 0,
+    price: parseFloat((row[11] || "0").trim()) || 0,
   };
 }

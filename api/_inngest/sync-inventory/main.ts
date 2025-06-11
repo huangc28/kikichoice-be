@@ -2,12 +2,15 @@ import { Inngest, NonRetriableError } from "inngest";
 import type { GetFunctionInput } from "inngest";
 import { tryCatch } from "#shared/try-catch.js";
 import { upsertProducts } from "./upsert-products.js";
-import { fetchSheetData } from "./fetch-sheet-data.js";
+import { fetchSheetData } from "./services/google-sheet/fetch-sheet-data.js";
+import { clearSheetAdjustment } from "./services/google-sheet/clear-sheet_adjustment.js";
 
 export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
   const [products, fetchError] = await tryCatch(
     step.run("fetch-sheet-data", async () => fetchSheetData()),
   );
+
+  console.log("** 1 products", products);
 
   if (fetchError) {
     console.error("Error fetching sheet data:", fetchError);
@@ -29,6 +32,25 @@ export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
     console.error("Error upserting products:", upsertError);
     throw upsertError;
   }
+
+  const productWithAdjustment = products.filter(
+    (p) => p.stock_adjust_count > 0,
+  );
+
+  const [, clearError] = await tryCatch(
+    step.run(
+      "clear-sheet-adjustment",
+      async () => clearSheetAdjustment(productWithAdjustment.map((p) => p.sku)),
+    ),
+  );
+  if (clearError) {
+    console.error("Error clearing sheet adjustment:", clearError);
+    throw clearError;
+  }
+
+  console.log(
+    `✅ Successfully cleared sheet adjustment, ${productWithAdjustment.length}`,
+  );
 
   return {
     inserted: result?.inserted || 0,
