@@ -28,6 +28,8 @@ const envSchema = z.object({
   // Google Sheets Configuration
   GOOGLE_SHEET_ID: z.string().default(""),
   GOOGLE_SHEET_RANGE: z.string().default(""),
+  GOOGLE_PROD_VARIANTS_SHEET_ID: z.string().default(""),
+  GOOGLE_PROD_VARIANTS_SHEET_RANGE: z.string().default(""),
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().default(""),
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().default(""),
 

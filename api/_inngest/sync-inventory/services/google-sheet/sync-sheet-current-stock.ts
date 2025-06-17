@@ -1,5 +1,6 @@
-import { getGoogleSheetsClient } from "./client.js";
 import { env } from "#shared/env.js";
+
+import { getGoogleSheetsClient } from "#shared/client.js";
 
 export type StockUpdate = {
   sku: string;

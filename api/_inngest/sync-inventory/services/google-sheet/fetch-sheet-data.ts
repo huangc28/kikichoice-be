@@ -1,6 +1,7 @@
 import { env } from "#shared/env.js";
+import { getGoogleSheetsClient } from "#shared/client.js";
+
 import type { ProductRow } from "../../types.js";
-import { getGoogleSheetsClient } from "./client.js";
 
 // Function to fetch data from Google Sheets
 export const fetchSheetData = async (): Promise<ProductRow[]> => {
