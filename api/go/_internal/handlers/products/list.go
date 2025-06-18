@@ -104,8 +104,8 @@ func (h *ProductsListHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := renderProductList(products)
-	render.ChiJSON(w, r, response)
+	// response := renderProductList(products)
+	render.ChiJSON(w, r, products)
 }
 
 var _ router.Handler = (*ProductsListHandler)(nil)
