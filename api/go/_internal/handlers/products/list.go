@@ -52,18 +52,30 @@ type ProductListQuery struct {
 }
 
 func (h *ProductsListHandler) validateQuery(r *http.Request) (*ProductListQuery, error) {
-	// Parse pagination parameters
+	// Parse pagination parameters with defaults
 	pageStr := r.URL.Query().Get("page")
 	perPageStr := r.URL.Query().Get("per_page")
 
-	page, err := strconv.Atoi(pageStr)
-	if err != nil {
-		return nil, err
+	// Default values
+	page := 1
+	perPage := 15
+
+	// Parse page parameter if provided
+	if pageStr != "" {
+		var err error
+		page, err = strconv.Atoi(pageStr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	perPage, err := strconv.Atoi(perPageStr)
-	if err != nil {
-		return nil, err
+	// Parse perPage parameter if provided
+	if perPageStr != "" {
+		var err error
+		perPage, err = strconv.Atoi(perPageStr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	query := &ProductListQuery{
@@ -104,8 +116,8 @@ func (h *ProductsListHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// response := renderProductList(products)
-	render.ChiJSON(w, r, products)
+	response := renderProductList(products)
+	render.ChiJSON(w, r, response)
 }
 
 var _ router.Handler = (*ProductsListHandler)(nil)
