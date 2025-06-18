@@ -5,37 +5,89 @@
 package db
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Product struct {
-	ID              int64              `json:"id"`
-	Uuid            string             `json:"uuid"`
-	Sku             string             `json:"sku"`
-	Name            string             `json:"name"`
-	Price           pgtype.Numeric     `json:"price"`
-	OriginalPrice   pgtype.Numeric     `json:"original_price"`
-	Category        string             `json:"category"`
-	InStock         bool               `json:"in_stock"`
-	StockCount      int32              `json:"stock_count"`
-	Specs           []byte             `json:"specs"`
-	Description     pgtype.Text        `json:"description"`
-	FullDescription pgtype.Text        `json:"full_description"`
-	IsActive        bool               `json:"is_active"`
-	SortOrder       pgtype.Int4        `json:"sort_order"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+type EntityType string
+
+const (
+	EntityTypeProduct        EntityType = "product"
+	EntityTypeProductVariant EntityType = "product_variant"
+)
+
+func (e *EntityType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EntityType(s)
+	case string:
+		*e = EntityType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EntityType: %T", src)
+	}
+	return nil
 }
 
-type ProductImage struct {
+type NullEntityType struct {
+	EntityType EntityType `json:"entity_type"`
+	Valid      bool       `json:"valid"` // Valid is true if EntityType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEntityType) Scan(value interface{}) error {
+	if value == nil {
+		ns.EntityType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EntityType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEntityType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EntityType), nil
+}
+
+type Image struct {
 	ID        int64              `json:"id"`
-	ProductID int64              `json:"product_id"`
 	Url       string             `json:"url"`
-	AltText   pgtype.Text        `json:"alt_text"`
-	IsPrimary bool               `json:"is_primary"`
-	SortOrder pgtype.Int4        `json:"sort_order"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ImageEntity struct {
+	ID         int64              `json:"id"`
+	EntityID   int64              `json:"entity_id"`
+	AltText    pgtype.Text        `json:"alt_text"`
+	IsPrimary  bool               `json:"is_primary"`
+	SortOrder  pgtype.Int4        `json:"sort_order"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ImageID    int64              `json:"image_id"`
+	EntityType EntityType         `json:"entity_type"`
+}
+
+type Product struct {
+	ID            int64              `json:"id"`
+	Uuid          string             `json:"uuid"`
+	Sku           string             `json:"sku"`
+	Name          string             `json:"name"`
+	Price         pgtype.Numeric     `json:"price"`
+	OriginalPrice pgtype.Numeric     `json:"original_price"`
+	Category      pgtype.Text        `json:"category"`
+	StockCount    int32              `json:"stock_count"`
+	Specs         []byte             `json:"specs"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ReadyForSale  bool               `json:"ready_for_sale"`
+	FullDesc      pgtype.Text        `json:"full_desc"`
+	ReservedCount int32              `json:"reserved_count"`
+	ShortDesc     pgtype.Text        `json:"short_desc"`
 }
 
 type ProductSpec struct {
@@ -46,6 +98,18 @@ type ProductSpec struct {
 	SortOrder pgtype.Int4        `json:"sort_order"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProductVariant struct {
+	ID            int64              `json:"id"`
+	ProductID     int64              `json:"product_id"`
+	Name          string             `json:"name"`
+	StockCount    int32              `json:"stock_count"`
+	ReservedCount int32              `json:"reserved_count"`
+	Sku           string             `json:"sku"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	Price         pgtype.Numeric     `json:"price"`
 }
 
 type User struct {
@@ -61,10 +125,10 @@ type UserSession struct {
 	ID                     int64              `json:"id"`
 	ChatID                 int64              `json:"chat_id"`
 	UserID                 int64              `json:"user_id"`
-	ExpectedReplyMessageID pgtype.Int8        `json:"expected_reply_message_id"`
 	SessionType            string             `json:"session_type"`
 	State                  []byte             `json:"state"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 	ExpiresAt              pgtype.Timestamptz `json:"expires_at"`
+	ExpectedReplyMessageID pgtype.Int8        `json:"expected_reply_message_id"`
 }

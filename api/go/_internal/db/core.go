@@ -9,9 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/jackc/pgx/v5/stdlib"
-	_ "github.com/trinodb/trino-go-client/trino"
 
-	"github/huangc28/kikichoice-be/api/go/_internal/configs"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/configs"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"

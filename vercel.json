@@ -15,6 +15,14 @@
     {
       "source": "/v1/webhooks/telegram",
       "destination": "/api/go/entries/telegram/core"
+    },
+    {
+      "source": "/v1/main-page",
+      "destination": "/api/go/entries/products/core"
+    },
+    {
+      "source": "/v1/products",
+      "destination": "/api/go/entries/products/core"
     }
   ]
 }

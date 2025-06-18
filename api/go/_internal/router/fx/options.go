@@ -1,7 +1,7 @@
 package routerfx
 
 import (
-	"github/huangc28/kikichoice-be/api/go/_internal/router"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/router"
 	"go.uber.org/fx"
 )
 

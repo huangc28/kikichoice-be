@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	wvmiddlewares "github/huangc28/kikichoice-be/api/go/_internal/middlewares"
+	wvmiddlewares "github.com/huangc28/kikichoice-be/api/go/_internal/middlewares"
 	"go.uber.org/fx"
 )
 

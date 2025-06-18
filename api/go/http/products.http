@@ -1,0 +1,40 @@
+### Get Products List
+GET {{API_URL}}/v1/products
+Content-Type: application/json
+
+### Get Products List with Pagination
+GET {{API_URL}}/v1/products?page=1&per_page=10
+Content-Type: application/json
+
+### Response Example:
+# {
+#   "products": [
+#     {
+#       "id": 1,
+#       "uuid": "550e8400-e29b-41d4-a716-446655440000",
+#       "sku": "PROD-001",
+#       "name": "Sample Product",
+#       "price": "29.99",
+#       "original_price": "39.99",
+#       "category": "Electronics",
+#       "stock_count": 100,
+#       "specs": {},
+#       "created_at": "2025-01-01T00:00:00Z",
+#       "updated_at": "2025-01-01T00:00:00Z",
+#       "ready_for_sale": true,
+#       "full_desc": "Complete product description",
+#       "reserved_count": 5,
+#       "short_desc": "Brief description",
+#       "has_variant": true,
+#       "variant_count": 3
+#     }
+#   ]
+# }
+
+### Query Parameters:
+# page (optional): Page number (default: 1, min: 1)
+# per_page (optional): Items per page (default: 15, min: 1, max: 100)
+
+### Error Responses:
+# 400 Bad Request - Invalid query parameters
+# 500 Internal Server Error - Server error when fetching products

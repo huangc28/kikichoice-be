@@ -3,12 +3,13 @@ package handler
 import (
 	"net/http"
 
+	"github.com/huangc28/kikichoice-be/api/go/_internal/handlers/hello"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/pkg/logger"
+	router "github.com/huangc28/kikichoice-be/api/go/_internal/router"
+	routerfx "github.com/huangc28/kikichoice-be/api/go/_internal/router/fx"
+
 	"github.com/go-chi/chi/v5"
-	appfx "github/huangc28/kikichoice-be/api/go/_internal/fx"
-	"github/huangc28/kikichoice-be/api/go/_internal/handlers/hello"
-	"github/huangc28/kikichoice-be/api/go/_internal/pkg/logger"
-	"github/huangc28/kikichoice-be/api/go/_internal/router"
-	routerfx "github/huangc28/kikichoice-be/api/go/_internal/router/fx"
+	appfx "github.com/huangc28/kikichoice-be/api/go/_internal/fx"
 	"go.uber.org/fx"
 )
 
