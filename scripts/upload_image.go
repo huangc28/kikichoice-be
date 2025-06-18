@@ -24,7 +24,7 @@ import (
 // Read images from a folder.
 // Generate a nanoid for each image
 // Upload the image to azure blob storage
-// Create records in product_images. You can relate the images by directory name since the directory name is the product sku.
+// Create records in images table and image_entities table. You can relate the images by directory name since the directory name is the product sku.
 
 type ImageUploader struct {
 	cfg         *configs.Config
@@ -277,21 +277,43 @@ func (u *ImageUploader) processImage(ctx context.Context, productID int64, sku, 
 		return fmt.Errorf("failed to upload to Azure: %w", err)
 	}
 
-	// Create database record using raw SQL
-	insertQuery := `
-		INSERT INTO product_images (product_id, url, alt_text, is_primary, sort_order)
-		VALUES ($1, $2, $3, $4, $5)
-	`
-
-	altText := fmt.Sprintf("Product image for %s", sku)
-	isPrimary := sortOrder == 0 // First image is primary
-
-	_, err = u.db.ExecContext(ctx, insertQuery, productID, publicURL, altText, isPrimary, sortOrder)
+	// Start database transaction for two-table insert
+	tx, err := u.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create database record: %w", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Step 1: Insert into images table and get the image ID
+	var imageID int64
+	imageInsertQuery := `INSERT INTO images (url) VALUES ($1) RETURNING id`
+	err = tx.GetContext(ctx, &imageID, imageInsertQuery, publicURL)
+	if err != nil {
+		return fmt.Errorf("failed to insert into images table: %w", err)
 	}
 
-	u.logger.Debugf("Successfully processed image: %s -> %s", filepath.Base(imagePath), publicURL)
+	// Step 2: Insert into image_entities table
+	altText := fmt.Sprintf("Product image for %s", sku)
+	isPrimary := sortOrder == 0 // First image is primary
+	entityType := "product"
+
+	entityInsertQuery := `
+		INSERT INTO image_entities (entity_id, image_id, alt_text, is_primary, sort_order, entity_type)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err = tx.ExecContext(ctx, entityInsertQuery, productID, imageID, altText, isPrimary, sortOrder, entityType)
+	if err != nil {
+		return fmt.Errorf("failed to insert into image_entities table: %w", err)
+	}
+
+	// Commit the transaction
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	u.logger.Debugf("Successfully processed image: %s -> %s (image_id: %d)", filepath.Base(imagePath), publicURL, imageID)
 	return nil
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE image_entities DROP COLUMN url;
