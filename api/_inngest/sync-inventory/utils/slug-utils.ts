@@ -5,14 +5,15 @@
 export const generateSlug = (text: string): string => {
   return text
     .trim()
-    // Replace spaces and multiple whitespace with hyphens
+    // 1) Replace forward-slashes with hyphens so they’re not treated as URL segments
+    .replace(/\//g, "-")
+    // 2) Replace spaces and other whitespace runs with a single hyphen
     .replace(/\s+/g, "-")
-    // Remove only problematic URL characters while preserving Unicode
-    // Remove: < > " ` % { } | \ ^ [ ] ` and control characters
-    .replace(/[<>"'`%{}|\\^[\]`\x00-\x1f\x7f-\x9f]/g, "")
-    // Replace multiple consecutive hyphens with single hyphen
-    .replace(/\-\-+/g, "-")
-    // Remove leading/trailing hyphens
+    // 3) Remove only truly problematic URL chars, preserving Unicode (e.g. Chinese, emojis)
+    .replace(/[<>"'`%{}|\\\^\[\]\x00-\x1f\x7f-\x9f]/g, "")
+    // 4) Collapse multiple hyphens into one
+    .replace(/-+/g, "-")
+    // 5) Trim hyphens from ends
     .replace(/^-+|-+$/g, "");
 };
 
