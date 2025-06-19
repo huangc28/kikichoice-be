@@ -76,6 +76,7 @@ func renderProductDetail(productDetail *ProductDetail) *ProductDetailResponse {
 			StockCount: variant.StockCount,
 			ImageURL:   variant.ImageURL.String,
 			Price:      variant.Price,
+			UUID:       variant.Uuid.String,
 		}
 	}
 

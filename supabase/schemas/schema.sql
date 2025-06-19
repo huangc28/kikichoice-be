@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS "public"."product_variants" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "price" numeric(10,2) DEFAULT 0 NOT NULL,
+    "uuid" "text",
     CONSTRAINT "product_variant_reserved_count_check" CHECK (("reserved_count" >= 0)),
     CONSTRAINT "product_variant_stock_count_check" CHECK (("stock_count" >= 0)),
     CONSTRAINT "product_variants_price_check" CHECK (("price" >= (0)::numeric))

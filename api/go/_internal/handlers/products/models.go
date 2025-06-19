@@ -56,6 +56,7 @@ type ProductVariantResponse struct {
 	StockCount int32          `json:"stock_count"`
 	ImageURL   string         `json:"image_url"`
 	Price      pgtype.Numeric `json:"price"`
+	UUID       string         `json:"uuid"`
 }
 
 // ProductDetail represents the internal product detail with all related data

@@ -122,12 +122,12 @@ func (dao *ProductDAO) GetProductByUUID(ctx context.Context, uuid string) (*Prod
 			COALESCE(ie.sort_order, 0) as sort_order
 		FROM image_entities ie
 		JOIN images i ON ie.image_id = i.id
-		WHERE ie.entity_id = $1 AND ie.entity_type = 'product'
+		WHERE ie.entity_id = $1 AND ie.entity_type = $2
 		ORDER BY ie.sort_order, ie.id
 	`
 
 	var images []ProductImageWithEntity
-	err = dao.db.Select(&images, imagesQuery, product.ID)
+	err = dao.db.Select(&images, imagesQuery, product.ID, db.EntityTypeProduct)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +142,7 @@ func (dao *ProductDAO) GetProductByUUID(ctx context.Context, uuid string) (*Prod
 			pv.reserved_count,
 			pv.sku,
 			pv.price,
+			pv.uuid,
 			pv.created_at,
 			pv.updated_at,
 			COALESCE(img.url, '') as image_url
