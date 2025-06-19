@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 
-	"github/huangc28/kikichoice-be/api/go/_internal/configs"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/configs"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 )

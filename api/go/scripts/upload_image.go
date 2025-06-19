@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github/huangc28/kikichoice-be/api/go/_internal/configs"
-	appfx "github/huangc28/kikichoice-be/api/go/_internal/fx"
-	"github/huangc28/kikichoice-be/api/go/_internal/pkg/azure"
-	"github/huangc28/kikichoice-be/api/go/_internal/pkg/logger"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/pkg/azure"
+	"github.com/huangc28/kikichoice-be/api/go/_internal/pkg/logger"
+
+	"github.com/huangc28/kikichoice-be/api/go/_internal/configs"
+	appfx "github.com/huangc28/kikichoice-be/api/go/_internal/fx"
 
 	"github.com/jmoiron/sqlx"
 	gonanoid "github.com/matoous/go-nanoid/v2"
