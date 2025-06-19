@@ -1,6 +1,7 @@
 import client from "#shared/db.js";
 import { generateSqlBatchParams } from "#shared/sql-batch-utils.js";
 import { generateShortId } from "#shared/shortid.js";
+import { generateSlug, generateUniqueSlug } from "./utils/slug-utils.js";
 
 import type { ProductRow, ProductWithUUID } from "./types.js";
 
@@ -111,6 +112,7 @@ export const generateProductBatchParams = (
       product.stock_adjust_count,
       product.price,
       product.short_desc,
+      product.slug,
     ],
     additionalExpressions: ["NOW()"],
   });
@@ -123,13 +125,22 @@ const processBatch = async (products: ProductRow[]): Promise<{
   total: number;
   updatedProducts: Array<{ sku: string; stock_count: number }>;
 }> => {
-  const productsWithUuids = products.map((product) => ({
-    ...product,
-    uuid: generateShortId(16),
-  }));
+  // Generate slugs for the products and handle potential conflicts
+  const slugs = new Set<string>();
+  const productsWithUuidsAndSlugs = products.map((product) => {
+    const baseSlug = generateSlug(product.name);
+    const uniqueSlug = generateUniqueSlug(baseSlug, slugs);
+    slugs.add(uniqueSlug);
+
+    return {
+      ...product,
+      uuid: generateShortId(16),
+      slug: uniqueSlug,
+    };
+  });
 
   const { valuesClause, values } = generateProductBatchParams(
-    productsWithUuids,
+    productsWithUuidsAndSlugs,
   );
 
   const query = `
@@ -142,6 +153,7 @@ const processBatch = async (products: ProductRow[]): Promise<{
         stock_count,
         price,
         short_desc,
+        slug,
         updated_at
       )
       VALUES ${valuesClause}
@@ -152,6 +164,7 @@ const processBatch = async (products: ProductRow[]): Promise<{
         stock_count = products.stock_count + EXCLUDED.stock_count,
         price = EXCLUDED.price,
         short_desc = EXCLUDED.short_desc,
+        slug = EXCLUDED.slug,
         updated_at = NOW()
       RETURNING
         sku,

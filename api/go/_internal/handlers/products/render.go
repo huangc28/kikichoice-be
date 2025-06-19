@@ -14,6 +14,7 @@ type ProductResponse struct {
 	UUID            string         `json:"uuid"`
 	SKU             string         `json:"sku"`
 	Name            string         `json:"name"`
+	Slug            string         `json:"slug"`
 	Price           pgtype.Numeric `json:"price"`
 	OriginalPrice   pgtype.Numeric `json:"original_price"`
 	StockCount      int32          `json:"stock_count"`
@@ -31,6 +32,7 @@ func renderProductList(products []*Product) *ProductListAPIResponse {
 			UUID:            product.Uuid,
 			SKU:             product.Sku,
 			Name:            product.Name,
+			Slug:            product.Slug.String,
 			Price:           product.Price,
 			OriginalPrice:   product.OriginalPrice,
 			StockCount:      product.StockCount,

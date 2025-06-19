@@ -213,6 +213,7 @@ CREATE TABLE IF NOT EXISTS "public"."products" (
     "full_desc" "text",
     "reserved_count" integer DEFAULT 0 NOT NULL,
     "short_desc" "text",
+    "slug" "text",
     CONSTRAINT "products_original_price_check" CHECK (("original_price" >= (0)::numeric)),
     CONSTRAINT "products_price_check" CHECK (("price" >= (0)::numeric)),
     CONSTRAINT "products_reserved_count_check" CHECK (("reserved_count" >= 0)),

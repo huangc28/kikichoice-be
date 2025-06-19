@@ -9,4 +9,5 @@ export type ProductRow = {
 
 export type ProductWithUUID = ProductRow & {
   uuid: string;
+  slug: string;
 };

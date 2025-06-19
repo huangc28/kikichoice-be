@@ -88,6 +88,7 @@ type Product struct {
 	FullDesc      pgtype.Text        `json:"full_desc"`
 	ReservedCount int32              `json:"reserved_count"`
 	ShortDesc     pgtype.Text        `json:"short_desc"`
+	Slug          pgtype.Text        `json:"slug"`
 }
 
 type ProductSpec struct {

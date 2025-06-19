@@ -24,6 +24,7 @@ func (dao *ProductListDAO) GetProducts(ctx context.Context, page, perPage int) (
 			p.uuid,
 			p.sku,
 			p.name,
+			p.slug,
 			p.price,
 			p.original_price,
 			p.stock_count,
