@@ -1,5 +1,6 @@
 import dbpool from "#shared/db.js";
 import { generateSqlBatchParams } from "#shared/sql-batch-utils.js";
+import { generateShortId } from "#shared/shortid.js";
 import { ProductVariant } from "../types.js";
 
 type ParentProd = {
@@ -155,6 +156,7 @@ const processBatch = async (
       variant.sku,
       variant.stock_count,
       variant.price,
+      generateShortId(), // Generate UUID for each variant
     ],
     additionalExpressions: ["NOW()", "NOW()"],
   });
@@ -167,6 +169,7 @@ const processBatch = async (
         sku,
         stock_count,
         price,
+        uuid,
         created_at,
         updated_at
       )
