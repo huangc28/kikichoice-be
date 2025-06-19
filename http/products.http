@@ -6,6 +6,10 @@ Content-Type: application/json
 GET {{API_URL}}/v1/products?page=1&per_page=10
 Content-Type: application/json
 
+### Get Product Detail by UUID
+GET {{API_URL}}/v1/products/Mzs6LlpevSXYD-i1LmLz1
+Content-Type: application/json
+
 ### Response Example:
 # {
 #   "products": [
@@ -32,10 +36,53 @@ Content-Type: application/json
 #   ]
 # }
 
+### Product Detail Response Example:
+# {
+#   "uuid": "550e8400-e29b-41d4-a716-446655440000",
+#   "sku": "PROD-001",
+#   "name": "Sample Product",
+#   "slug": "sample-product",
+#   "price": "29.99",
+#   "original_price": "39.99",
+#   "short_desc": "Brief description",
+#   "full_desc": "Complete product description with markdown",
+#   "stock_count": 100,
+#   "images": [
+#     {
+#       "url": "https://example.com/product-main.jpg",
+#       "is_primary": true
+#     },
+#     {
+#       "url": "https://example.com/product-alt.jpg",
+#       "is_primary": false
+#     }
+#   ],
+#   "specs": [
+#     {
+#       "name": "Color",
+#       "value": "Red"
+#     },
+#     {
+#       "name": "Size",
+#       "value": "Large"
+#     }
+#   ],
+#   "variants": [
+#     {
+#       "name": "Red Large",
+#       "sku": "PROD-001-RED-L",
+#       "stock_count": 25,
+#       "image_url": "https://example.com/variant-image.jpg",
+#       "price": "29.99"
+#     }
+#   ]
+# }
+
 ### Query Parameters:
 # page (optional): Page number (default: 1, min: 1)
 # per_page (optional): Items per page (default: 15, min: 1, max: 100)
 
 ### Error Responses:
 # 400 Bad Request - Invalid query parameters
+# 404 Not Found - Product not found
 # 500 Internal Server Error - Server error when fetching products

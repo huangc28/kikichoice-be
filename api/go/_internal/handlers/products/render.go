@@ -47,3 +47,50 @@ func renderProductList(products []*Product) *ProductListAPIResponse {
 		Products: productResponses,
 	}
 }
+
+func renderProductDetail(productDetail *ProductDetail) *ProductDetailResponse {
+	// Convert specs from JSON format
+	specs := make([]ProductSpecResponse, len(productDetail.ParsedSpecs))
+	for i, spec := range productDetail.ParsedSpecs {
+		specs[i] = ProductSpecResponse{
+			Name:  spec.SpecName,
+			Value: spec.SpecValue,
+		}
+	}
+
+	// Convert images
+	images := make([]ProductImageResponse, len(productDetail.Images))
+	for i, image := range productDetail.Images {
+		images[i] = ProductImageResponse{
+			URL:       image.URL,
+			IsPrimary: image.IsPrimary,
+		}
+	}
+
+	// Convert variants
+	variants := make([]ProductVariantResponse, len(productDetail.Variants))
+	for i, variant := range productDetail.Variants {
+		variants[i] = ProductVariantResponse{
+			Name:       variant.Name,
+			SKU:        variant.Sku,
+			StockCount: variant.StockCount,
+			ImageURL:   variant.ImageURL.String,
+			Price:      variant.Price,
+		}
+	}
+
+	return &ProductDetailResponse{
+		UUID:          productDetail.Product.Uuid,
+		SKU:           productDetail.Product.Sku,
+		Name:          productDetail.Product.Name,
+		Slug:          productDetail.Product.Slug.String,
+		Price:         productDetail.Product.Price,
+		OriginalPrice: productDetail.Product.OriginalPrice,
+		ShortDesc:     productDetail.Product.ShortDesc.String,
+		FullDesc:      productDetail.Product.FullDesc.String,
+		StockCount:    productDetail.Product.StockCount,
+		Images:        images,
+		Specs:         specs,
+		Variants:      variants,
+	}
+}

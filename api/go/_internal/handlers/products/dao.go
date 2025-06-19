@@ -2,19 +2,20 @@ package products
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/huangc28/kikichoice-be/api/go/_internal/db"
 )
 
-type ProductListDAO struct {
+type ProductDAO struct {
 	db db.Conn
 }
 
-func NewProductListDAO(db db.Conn) *ProductListDAO {
-	return &ProductListDAO{db: db}
+func NewProductDAO(db db.Conn) *ProductDAO {
+	return &ProductDAO{db: db}
 }
 
-func (dao *ProductListDAO) GetProducts(ctx context.Context, page, perPage int) ([]*Product, error) {
+func (dao *ProductDAO) GetProducts(ctx context.Context, page, perPage int) ([]*Product, error) {
 	offset := (page - 1) * perPage
 
 	// Execute the complex query to get products with pagination
@@ -74,4 +75,110 @@ func (dao *ProductListDAO) GetProducts(ctx context.Context, page, perPage int) (
 	}
 
 	return products, nil
+}
+
+func (dao *ProductDAO) GetProductByUUID(ctx context.Context, uuid string) (*ProductDetail, error) {
+	// First, get the main product
+	productQuery := `
+		SELECT
+			p.id,
+			p.uuid,
+			p.sku,
+			p.name,
+			p.slug,
+			p.price,
+			p.original_price,
+			p.short_desc,
+			p.full_desc,
+			p.stock_count,
+			p.specs,
+			p.ready_for_sale,
+			p.created_at,
+			p.updated_at
+		FROM products p
+		WHERE p.uuid = $1 AND p.ready_for_sale = true
+	`
+
+	var product db.Product
+	err := dao.db.Get(&product, productQuery, uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse specs from JSONB column
+	var specsJSON []ProductSpecJSON
+	if len(product.Specs) > 0 {
+		err = json.Unmarshal(product.Specs, &specsJSON)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Get product images
+	imagesQuery := `
+		SELECT
+			i.url,
+			ie.is_primary,
+			COALESCE(ie.sort_order, 0) as sort_order
+		FROM image_entities ie
+		JOIN images i ON ie.image_id = i.id
+		WHERE ie.entity_id = $1 AND ie.entity_type = 'product'
+		ORDER BY ie.sort_order, ie.id
+	`
+
+	var images []ProductImageWithEntity
+	err = dao.db.Select(&images, imagesQuery, product.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get product variants with their primary images
+	variantsQuery := `
+		SELECT
+			pv.id,
+			pv.product_id,
+			pv.name,
+			pv.stock_count,
+			pv.reserved_count,
+			pv.sku,
+			pv.price,
+			pv.created_at,
+			pv.updated_at,
+			COALESCE(img.url, '') as image_url
+		FROM product_variants pv
+		LEFT JOIN (
+			SELECT DISTINCT ON (ie.entity_id)
+				ie.entity_id,
+				i.url
+			FROM image_entities ie
+			JOIN images i ON ie.image_id = i.id
+			WHERE ie.entity_type = 'product_variant' AND ie.is_primary = true
+			ORDER BY ie.entity_id, ie.sort_order
+		) img ON pv.id = img.entity_id
+		WHERE pv.product_id = $1
+		ORDER BY pv.name
+	`
+
+	rows, err := dao.db.Queryx(variantsQuery, product.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var variants []ProductVariantWithImage
+	for rows.Next() {
+		var variant ProductVariantWithImage
+		err := rows.StructScan(&variant)
+		if err != nil {
+			return nil, err
+		}
+		variants = append(variants, variant)
+	}
+
+	return &ProductDetail{
+		Product:     product,
+		ParsedSpecs: specsJSON,
+		Images:      images,
+		Variants:    variants,
+	}, nil
 }

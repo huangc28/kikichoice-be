@@ -19,10 +19,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		appfx.CoreConfigOptions,
 		routerfx.CoreRouterOptions,
 		fx.Provide(
-			products.NewProductListDAO,
+			products.NewProductDAO,
 		),
 		fx.Provide(
 			router.AsRoute(products.NewProductsListHandler),
+			router.AsRoute(products.NewProductDetailHandler),
 		),
 		fx.Invoke(func(router *chi.Mux) {
 			router.ServeHTTP(w, r)

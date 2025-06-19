@@ -22,7 +22,7 @@ type PaginationMeta struct {
 }
 
 type ProductsListHandler struct {
-	dao       *ProductListDAO
+	dao       *ProductDAO
 	validator *validator.Validate
 	logger    *zap.SugaredLogger
 }
@@ -30,7 +30,7 @@ type ProductsListHandler struct {
 type ProductsListHandlerParams struct {
 	fx.In
 
-	DAO    *ProductListDAO
+	DAO    *ProductDAO
 	Logger *zap.SugaredLogger
 }
 
