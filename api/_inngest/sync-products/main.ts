@@ -59,10 +59,10 @@ export const syncFunc = async ({ step }: GetFunctionInput<Inngest>) => {
   };
 };
 
-export const syncInventory = (inngest: Inngest) => {
+export const syncProducts = (inngest: Inngest) => {
   return inngest.createFunction(
     {
-      id: "sync-inventory",
+      id: "sync-products",
       retries: 3,
     },
     { cron: "*/30 * * * *" }, // every 30 minutes

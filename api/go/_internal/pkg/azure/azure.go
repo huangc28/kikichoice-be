@@ -71,3 +71,59 @@ func (c *BlobStorageWrapperClient) GetPublicURL(containerName, blobName string) 
 		blobName,
 	)
 }
+
+// ListBlobsWithPrefix lists all blobs in the container that start with the given prefix
+func (c *BlobStorageWrapperClient) ListBlobsWithPrefix(ctx context.Context, containerName, prefix string) ([]string, error) {
+	pager := c.Client.NewListBlobsFlatPager(containerName, &azblob.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
+
+	var blobNames []string
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list blobs: %v", err)
+		}
+
+		for _, blob := range resp.Segment.BlobItems {
+			if blob.Name != nil {
+				blobNames = append(blobNames, *blob.Name)
+			}
+		}
+	}
+
+	return blobNames, nil
+}
+
+// DeleteBlob deletes a single blob from the container
+func (c *BlobStorageWrapperClient) DeleteBlob(ctx context.Context, containerName, blobName string) error {
+	_, err := c.Client.DeleteBlob(ctx, containerName, blobName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete blob %s: %v", blobName, err)
+	}
+	return nil
+}
+
+// DeleteBlobsWithPrefix deletes all blobs in the container that start with the given prefix
+func (c *BlobStorageWrapperClient) DeleteBlobsWithPrefix(ctx context.Context, containerName, prefix string) (int, error) {
+	// First, list all blobs with the prefix
+	blobNames, err := c.ListBlobsWithPrefix(ctx, containerName, prefix)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list blobs for deletion: %v", err)
+	}
+
+	if len(blobNames) == 0 {
+		return 0, nil
+	}
+
+	// Delete each blob
+	deletedCount := 0
+	for _, blobName := range blobNames {
+		if err := c.DeleteBlob(ctx, containerName, blobName); err != nil {
+			return deletedCount, fmt.Errorf("failed to delete blob %s: %v", blobName, err)
+		}
+		deletedCount++
+	}
+
+	return deletedCount, nil
+}

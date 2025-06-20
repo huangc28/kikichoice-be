@@ -33,6 +33,7 @@ type ImageUploader struct {
 	azureClient *azure.BlobStorageWrapperClient
 	logger      *zap.SugaredLogger
 	dryRun      bool
+	cleanFirst  bool
 }
 
 type ImageUploaderParams struct {
@@ -68,12 +69,18 @@ func NewImageUploader(p ImageUploaderParams) *ImageUploader {
 		azureClient: p.AzureClient,
 		logger:      p.Logger,
 		dryRun:      false, // Will be set by command line flag
+		cleanFirst:  false, // Will be set by command line flag
 	}
 }
 
 // SetDryRun enables or disables dry-run mode
 func (u *ImageUploader) SetDryRun(dryRun bool) {
 	u.dryRun = dryRun
+}
+
+// SetCleanFirst enables or disables cleanup mode
+func (u *ImageUploader) SetCleanFirst(cleanFirst bool) {
+	u.cleanFirst = cleanFirst
 }
 
 // Upload processes images from the specified directory
@@ -205,6 +212,95 @@ func (u *ImageUploader) scanDirectory(sourcePath string) (map[string][]string, e
 	return imageGroups, err
 }
 
+// cleanupExistingImages removes all existing images for a SKU from both Azure and database
+func (u *ImageUploader) cleanupExistingImages(ctx context.Context, productID int64, sku string) error {
+	blobPrefix := sku + "/"
+
+	if u.dryRun {
+		// In dry-run mode, just list what would be deleted
+		blobNames, err := u.azureClient.ListBlobsWithPrefix(ctx, azure.ProductImageContainerName, blobPrefix)
+		if err != nil {
+			return fmt.Errorf("failed to list existing blobs for SKU %s: %w", sku, err)
+		}
+
+		if len(blobNames) > 0 {
+			u.logger.Infof("[DRY RUN] Would delete %d existing images for SKU %s:", len(blobNames), sku)
+			for _, blobName := range blobNames {
+				u.logger.Infof("[DRY RUN]   - %s", blobName)
+			}
+		} else {
+			u.logger.Infof("[DRY RUN] No existing images found for SKU %s", sku)
+		}
+		return nil
+	}
+
+	// Delete blobs from Azure
+	deletedCount, err := u.azureClient.DeleteBlobsWithPrefix(ctx, azure.ProductImageContainerName, blobPrefix)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing blobs for SKU %s: %w", sku, err)
+	}
+
+	if deletedCount > 0 {
+		u.logger.Infof("Deleted %d existing images from Azure for SKU %s", deletedCount, sku)
+
+		// Clean up database records for this product's images
+		err = u.cleanupDatabaseRecords(ctx, productID)
+		if err != nil {
+			u.logger.Warnf("Failed to cleanup database records for product ID %d: %v", productID, err)
+			// Don't fail the entire process for database cleanup issues
+		}
+	} else {
+		u.logger.Infof("No existing images found for SKU %s", sku)
+	}
+
+	return nil
+}
+
+// cleanupDatabaseRecords removes image records from the database for a product
+func (u *ImageUploader) cleanupDatabaseRecords(ctx context.Context, productID int64) error {
+	tx, err := u.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Get image IDs that belong to this product
+	var imageIDs []int64
+	query := `SELECT image_id FROM image_entities WHERE entity_id = $1 AND entity_type = 'product'`
+	err = tx.SelectContext(ctx, &imageIDs, query, productID)
+	if err != nil {
+		return fmt.Errorf("failed to get image IDs: %w", err)
+	}
+
+	if len(imageIDs) == 0 {
+		return tx.Commit() // Nothing to clean up
+	}
+
+	// Delete from image_entities first (foreign key constraint)
+	deleteEntitiesQuery := `DELETE FROM image_entities WHERE entity_id = $1 AND entity_type = 'product'`
+	_, err = tx.ExecContext(ctx, deleteEntitiesQuery, productID)
+	if err != nil {
+		return fmt.Errorf("failed to delete image entities: %w", err)
+	}
+
+	// Delete from images table
+	for _, imageID := range imageIDs {
+		deleteImageQuery := `DELETE FROM images WHERE id = $1`
+		_, err = tx.ExecContext(ctx, deleteImageQuery, imageID)
+		if err != nil {
+			return fmt.Errorf("failed to delete image %d: %w", imageID, err)
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit cleanup transaction: %w", err)
+	}
+
+	u.logger.Debugf("Cleaned up %d database records for product ID %d", len(imageIDs), productID)
+	return nil
+}
+
 // processProductImages processes all images for a single product SKU
 func (u *ImageUploader) processProductImages(sku string, imagePaths []string, result *UploadResult) error {
 	ctx := context.Background()
@@ -224,6 +320,14 @@ func (u *ImageUploader) processProductImages(sku string, imagePaths []string, re
 	}
 
 	u.logger.Infof("Processing %d images for product '%s' (SKU: %s, ID: %d)", len(imagePaths), product.Name, sku, product.ID)
+
+	// Clean up existing images if requested
+	if u.cleanFirst {
+		err = u.cleanupExistingImages(ctx, product.ID, sku)
+		if err != nil {
+			return fmt.Errorf("failed to cleanup existing images for SKU %s: %w", sku, err)
+		}
+	}
 
 	// Process each image
 	for i, imagePath := range imagePaths {
@@ -333,6 +437,7 @@ func (u *ImageUploader) generateNanoID() string {
 // Command line flags
 var (
 	dryRunFlag = flag.Bool("dry-run", false, "Run in dry-run mode without making actual changes")
+	cleanFlag  = flag.Bool("clean-first", false, "Remove all existing images for each SKU before uploading new ones")
 	helpFlag   = flag.Bool("help", false, "Show help information")
 )
 
@@ -352,13 +457,16 @@ func Upload(uploader *ImageUploader) {
 		fmt.Println("Examples:")
 		fmt.Println("  go run scripts/upload_image.go ./images")
 		fmt.Println("  go run scripts/upload_image.go --dry-run /path/to/images")
+		fmt.Println("  go run scripts/upload_image.go --clean-first ./images")
+		fmt.Println("  go run scripts/upload_image.go --clean-first --dry-run ./images")
 		fmt.Println()
 		fmt.Println("See scripts/README.md for detailed documentation")
 		return
 	}
 
-	// Set dry-run mode
+	// Set dry-run mode and clean-first mode
 	uploader.SetDryRun(*dryRunFlag)
+	uploader.SetCleanFirst(*cleanFlag)
 
 	// Get source path from command line args or use default
 	sourcePath := "./images" // Default path
