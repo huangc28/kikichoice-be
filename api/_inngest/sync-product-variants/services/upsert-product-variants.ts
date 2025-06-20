@@ -28,6 +28,7 @@ const fetchParentProdsByParentSkus = async (
 
 export type ProcessedProductVariant = {
   sku: string;
+  parent_sku: string;
   stock_count: number;
   price: number;
 };
@@ -108,6 +109,11 @@ export const syncProductVariants = async (
   let totalProcessed = 0;
   const allProcessedVariants: ProcessedProductVariant[] = [];
 
+  // Create a mapping from variant SKU to parent SKU for processed variants
+  const variantSkuToParentSku = new Map(
+    validVariants.map((variant) => [variant.sku, variant.parent_sku]),
+  );
+
   for (const [batchIndex, batch] of batches.entries()) {
     console.log(
       `📦 Processing batch ${
@@ -115,7 +121,7 @@ export const syncProductVariants = async (
       }/${batches.length} (${batch.length} variants)`,
     );
 
-    const result = await processBatch(batch);
+    const result = await processBatch(batch, variantSkuToParentSku);
     totalInserted += result.inserted;
     totalUpdated += result.updated;
     totalProcessed += result.total;
@@ -142,6 +148,7 @@ const processBatch = async (
     stock_count: number;
     price: number;
   }>,
+  variantSkuToParentSku: Map<string, string>,
 ): Promise<{
   inserted: number;
   updated: number;
@@ -206,6 +213,7 @@ const processBatch = async (
   // Extract processed variants data for sheet sync
   const processedVariants: ProcessedProductVariant[] = rows.map((row) => ({
     sku: row.sku,
+    parent_sku: variantSkuToParentSku.get(row.sku) || "",
     stock_count: parseInt(row.stock_count),
     price: parseFloat(row.price),
   }));

@@ -6,6 +6,8 @@ import { env } from "#shared/env.js";
 import { fetchProductVariantsFromSheet } from "./services/fetch-product-variants.js";
 import { syncProductVariants as upsertProductVariants } from "./services/upsert-product-variants.js";
 import { syncProductVariantsSheet } from "./services/sync-product-variants-sheet.js";
+import { syncParentProductsStock } from "./services/sync-parent-products-stock.js";
+import { updateParentProductsStockInDB } from "./services/update-parent-products-db.js";
 
 export const syncProductVariantsFunc = async (
   { step }: GetFunctionInput<Inngest>,
@@ -63,6 +65,45 @@ export const syncProductVariantsFunc = async (
   console.info(
     `Sheet ${env.GOOGLE_PROD_VARIANTS_SHEET_ID} updated successfully`,
   );
+
+  // Sync parent products stock totals to the parent sheet
+  const [, syncParentError] = await tryCatch(
+    step.run(
+      "sync-parent-products-stock",
+      () => syncParentProductsStock(result!.processedVariants),
+    ),
+  );
+
+  if (syncParentError) {
+    console.error(
+      "❌ Error syncing parent products stock:",
+      syncParentError,
+    );
+    throw syncParentError;
+  }
+
+  console.info("✅ parent products stock synced to sheet");
+  console.info(
+    `Parent sheet ${env.GOOGLE_SHEET_ID} updated successfully`,
+  );
+
+  // Update parent products stock in database
+  const [, updateDbError] = await tryCatch(
+    step.run(
+      "update-parent-products-db",
+      () => updateParentProductsStockInDB(result!.processedVariants),
+    ),
+  );
+
+  if (updateDbError) {
+    console.error(
+      "❌ Error updating parent products in database:",
+      updateDbError,
+    );
+    throw updateDbError;
+  }
+
+  console.info("✅ parent products stock updated in database");
 
   return result;
 };
