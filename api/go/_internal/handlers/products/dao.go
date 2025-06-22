@@ -65,7 +65,21 @@ func (dao *ProductDAO) GetProducts(ctx context.Context, page, perPage int) ([]*P
 	for rows.Next() {
 		var product Product
 		var variantCount int64
-		err := rows.StructScan(&product)
+
+		// Manual scan to properly read all columns including variant_count
+		err := rows.Scan(
+			&product.ID,
+			&product.Uuid,
+			&product.Sku,
+			&product.Name,
+			&product.Slug,
+			&product.Price,
+			&product.OriginalPrice,
+			&product.StockCount,
+			&product.ShortDesc,
+			&variantCount, // This was missing - now properly populated
+			&product.PrimaryImageURL,
+		)
 		if err != nil {
 			return nil, err
 		}
