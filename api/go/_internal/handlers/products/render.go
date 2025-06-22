@@ -95,3 +95,23 @@ func renderProductDetail(productDetail *ProductDetail) *ProductDetailResponse {
 		Variants:      variants,
 	}
 }
+
+func renderProductVariantsList(variants []ProductVariantWithImage) *ProductVariantsListResponse {
+	// Initialize empty slice to ensure we always return an array (not null)
+	variantResponses := make([]ProductVariantResponse, 0, len(variants))
+
+	for _, variant := range variants {
+		variantResponses = append(variantResponses, ProductVariantResponse{
+			Name:       variant.Name,
+			SKU:        variant.Sku,
+			StockCount: variant.StockCount,
+			ImageURL:   variant.ImageURL.String,
+			Price:      variant.Price,
+			UUID:       variant.Uuid.String,
+		})
+	}
+
+	return &ProductVariantsListResponse{
+		Variants: variantResponses,
+	}
+}

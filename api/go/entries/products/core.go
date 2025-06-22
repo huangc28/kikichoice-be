@@ -24,6 +24,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		fx.Provide(
 			router.AsRoute(products.NewProductsListHandler),
 			router.AsRoute(products.NewProductDetailHandler),
+			router.AsRoute(products.NewProductVariantsListHandler),
 		),
 		fx.Invoke(func(router *chi.Mux) {
 			router.ServeHTTP(w, r)

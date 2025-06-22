@@ -59,6 +59,11 @@ type ProductVariantResponse struct {
 	UUID       string         `json:"uuid"`
 }
 
+// ProductVariantsListResponse represents the API response for product variants list
+type ProductVariantsListResponse struct {
+	Variants []ProductVariantResponse `json:"variants"`
+}
+
 // ProductDetail represents the internal product detail with all related data
 type ProductDetail struct {
 	db.Product

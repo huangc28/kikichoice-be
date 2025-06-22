@@ -27,6 +27,31 @@ import (
 // Upload the image to azure blob storage
 // Create records in images table and image_entities table. You can relate the images by directory name since the directory name is the product sku.
 
+// DirectoryType represents the type of directory (product or variant)
+type DirectoryType int
+
+const (
+	ProductDirectory DirectoryType = iota
+	VariantDirectory
+)
+
+// DirectoryInfo contains information about a directory and its images
+type DirectoryInfo struct {
+	Path      string
+	SKU       string
+	Type      DirectoryType
+	ParentSKU string // Only for variants
+	Images    []string
+}
+
+// VariantInfo contains database information about a product variant
+type VariantInfo struct {
+	ID        int64  `json:"id"`
+	SKU       string `json:"sku"`
+	ProductID int64  `json:"product_id"`
+	Name      string `json:"name"`
+}
+
 type ImageUploader struct {
 	cfg         *configs.Config
 	db          *sqlx.DB
@@ -46,12 +71,17 @@ type ImageUploaderParams struct {
 }
 
 type UploadResult struct {
-	ProcessedProducts int
-	UploadedImages    int
-	SkippedImages     int
-	Errors            []error
-	TotalSizeBytes    int64
-	DryRun            bool
+	ProcessedProducts     int
+	ProcessedVariants     int
+	UploadedImages        int
+	UploadedProductImages int
+	UploadedVariantImages int
+	SkippedImages         int
+	SkippedProductImages  int
+	SkippedVariantImages  int
+	Errors                []error
+	TotalSizeBytes        int64
+	DryRun                bool
 }
 
 type ImageFile struct {
@@ -97,28 +127,60 @@ func (u *ImageUploader) Upload(sourcePath string) (*UploadResult, error) {
 		return nil, fmt.Errorf("invalid source path: %w", err)
 	}
 
-	// Scan directory for images grouped by SKU
-	imageGroups, err := u.scanDirectory(sourcePath)
+	// Scan directory for images grouped by directory type and SKU
+	directories, err := u.scanDirectory(sourcePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan directory: %w", err)
 	}
 
-	if len(imageGroups) == 0 {
-		u.logger.Warn("No product directories found in source path")
+	if len(directories) == 0 {
+		u.logger.Warn("No directories found in source path")
 		return result, nil
 	}
 
-	u.logger.Infof("Found %d product directories to process", len(imageGroups))
+	// Separate products and variants
+	productDirs := make(map[string]DirectoryInfo)
+	variantDirs := make(map[string]DirectoryInfo)
 
-	// Process each SKU group
-	for sku, images := range imageGroups {
-		err := u.processProductImages(sku, images, result)
+	for sku, dirInfo := range directories {
+		if dirInfo.Type == ProductDirectory {
+			productDirs[sku] = dirInfo
+		} else {
+			variantDirs[sku] = dirInfo
+		}
+	}
+
+	u.logger.Infof("Found %d product directories and %d variant directories to process",
+		len(productDirs), len(variantDirs))
+
+	// Validate variant directories against database
+	if len(variantDirs) > 0 {
+		err = u.validateVariantDirectories(context.Background(), variantDirs)
 		if err != nil {
-			u.logger.Errorf("Failed to process images for SKU %s: %v", sku, err)
-			result.Errors = append(result.Errors, fmt.Errorf("SKU %s: %w", sku, err))
+			return nil, fmt.Errorf("variant validation failed: %w", err)
+		}
+	}
+
+	// Process product directories
+	for sku, dirInfo := range productDirs {
+		err := u.processDirectoryImages(context.Background(), dirInfo, result)
+		if err != nil {
+			u.logger.Errorf("Failed to process product images for SKU %s: %v", sku, err)
+			result.Errors = append(result.Errors, fmt.Errorf("product SKU %s: %w", sku, err))
 			continue
 		}
 		result.ProcessedProducts++
+	}
+
+	// Process variant directories
+	for sku, dirInfo := range variantDirs {
+		err := u.processDirectoryImages(context.Background(), dirInfo, result)
+		if err != nil {
+			u.logger.Errorf("Failed to process variant images for SKU %s: %v", sku, err)
+			result.Errors = append(result.Errors, fmt.Errorf("variant SKU %s: %w", sku, err))
+			continue
+		}
+		result.ProcessedVariants++
 	}
 
 	status := "completed"
@@ -126,8 +188,10 @@ func (u *ImageUploader) Upload(sourcePath string) (*UploadResult, error) {
 		status = "completed (DRY RUN - no changes made)"
 	}
 
-	u.logger.Infof("Upload %s. Processed: %d products, Uploaded: %d images, Skipped: %d images, Errors: %d, Total size: %.2f MB",
-		status, result.ProcessedProducts, result.UploadedImages, result.SkippedImages, len(result.Errors), float64(result.TotalSizeBytes)/(1024*1024))
+	u.logger.Infof("Upload %s. Products: %d, Variants: %d, Total Images: %d (Product: %d, Variant: %d), Skipped: %d, Errors: %d, Total size: %.2f MB",
+		status, result.ProcessedProducts, result.ProcessedVariants, result.UploadedImages,
+		result.UploadedProductImages, result.UploadedVariantImages,
+		result.SkippedImages, len(result.Errors), float64(result.TotalSizeBytes)/(1024*1024))
 
 	return result, nil
 }
@@ -156,9 +220,9 @@ func (u *ImageUploader) validateSourcePath(sourcePath string) error {
 	return nil
 }
 
-// scanDirectory scans the source directory and groups images by SKU (directory name)
-func (u *ImageUploader) scanDirectory(sourcePath string) (map[string][]string, error) {
-	imageGroups := make(map[string][]string)
+// scanDirectory scans the source directory and classifies directories as product or variant
+func (u *ImageUploader) scanDirectory(sourcePath string) (map[string]DirectoryInfo, error) {
+	directories := make(map[string]DirectoryInfo)
 	supportedExts := map[string]bool{
 		".jpg":  true,
 		".jpeg": true,
@@ -166,6 +230,7 @@ func (u *ImageUploader) scanDirectory(sourcePath string) (map[string][]string, e
 		".webp": true,
 	}
 
+	// First pass: identify all directories and their images
 	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			u.logger.Warnf("Error accessing path %s: %v", path, err)
@@ -184,7 +249,7 @@ func (u *ImageUploader) scanDirectory(sourcePath string) (map[string][]string, e
 			return nil
 		}
 
-		// Get the parent directory name as SKU
+		// Get the parent directory name as potential SKU
 		parentDir := filepath.Base(filepath.Dir(path))
 
 		// Skip if the parent directory is the source directory itself
@@ -199,21 +264,115 @@ func (u *ImageUploader) scanDirectory(sourcePath string) (map[string][]string, e
 			return nil
 		}
 
-		// Add to the appropriate SKU group
-		if imageGroups[parentDir] == nil {
-			imageGroups[parentDir] = make([]string, 0)
-		}
-		imageGroups[parentDir] = append(imageGroups[parentDir], path)
+		// Initialize directory info if not exists
+		if _, exists := directories[parentDir]; !exists {
+			// Determine if this is a variant directory
+			dirType, parentSKU := u.classifyDirectory(parentDir)
 
-		u.logger.Debugf("Found image: %s (SKU: %s, Size: %d bytes)", filepath.Base(path), parentDir, info.Size())
+			directories[parentDir] = DirectoryInfo{
+				Path:      filepath.Dir(path),
+				SKU:       parentDir,
+				Type:      dirType,
+				ParentSKU: parentSKU,
+				Images:    make([]string, 0),
+			}
+		}
+
+		// Add image to the directory
+		dirInfo := directories[parentDir]
+		dirInfo.Images = append(dirInfo.Images, path)
+		directories[parentDir] = dirInfo
+
+		u.logger.Debugf("Found image: %s (SKU: %s, Type: %v, Size: %d bytes)",
+			filepath.Base(path), parentDir, dirInfo.Type, info.Size())
 		return nil
 	})
 
-	return imageGroups, err
+	return directories, err
+}
+
+// classifyDirectory determines if a directory is for a product or variant
+func (u *ImageUploader) classifyDirectory(dirName string) (DirectoryType, string) {
+	// Check if directory name contains hyphens (potential variant)
+	parts := strings.Split(dirName, "-")
+	if len(parts) <= 1 {
+		// No hyphens, must be a product directory
+		return ProductDirectory, ""
+	}
+
+	// For variant directories, the parent SKU is everything except the last part
+	// e.g., "kivy-007-dog" -> parent SKU is "kivy-007", variant suffix is "dog"
+	parentSKU := strings.Join(parts[:len(parts)-1], "-")
+
+	// If parent SKU is empty, treat as product directory
+	if parentSKU == "" {
+		return ProductDirectory, ""
+	}
+
+	// We'll validate this assumption later against the database
+	return VariantDirectory, parentSKU
+}
+
+// validateVariantDirectories validates that variant SKUs exist in the database
+func (u *ImageUploader) validateVariantDirectories(ctx context.Context, variantDirs map[string]DirectoryInfo) error {
+	if len(variantDirs) == 0 {
+		return nil
+	}
+
+	// Collect all variant SKUs to validate
+	variantSKUs := make([]string, 0, len(variantDirs))
+	for sku := range variantDirs {
+		variantSKUs = append(variantSKUs, sku)
+	}
+
+	// Query database for these SKUs
+	query := `SELECT sku, id, product_id, name FROM product_variants WHERE sku = ANY($1)`
+	rows, err := u.db.QueryxContext(ctx, query, variantSKUs)
+	if err != nil {
+		return fmt.Errorf("failed to query variant SKUs: %w", err)
+	}
+	defer rows.Close()
+
+	validVariants := make(map[string]VariantInfo)
+	for rows.Next() {
+		var variant VariantInfo
+		err := rows.StructScan(&variant)
+		if err != nil {
+			return fmt.Errorf("failed to scan variant row: %w", err)
+		}
+		validVariants[variant.SKU] = variant
+	}
+
+	// Check which variant directories are valid
+	validCount := 0
+	for sku, dirInfo := range variantDirs {
+		if _, exists := validVariants[sku]; exists {
+			validCount++
+			u.logger.Debugf("Validated variant directory: %s", sku)
+		} else {
+			u.logger.Warnf("Variant SKU not found in database, treating as product: %s", sku)
+			// Convert to product directory
+			dirInfo.Type = ProductDirectory
+			dirInfo.ParentSKU = ""
+			variantDirs[sku] = dirInfo
+		}
+	}
+
+	u.logger.Infof("Validated %d variant directories out of %d", validCount, len(variantDirs))
+	return nil
+}
+
+// processDirectoryImages routes to appropriate processing method based on directory type
+func (u *ImageUploader) processDirectoryImages(ctx context.Context, dirInfo DirectoryInfo, result *UploadResult) error {
+	if dirInfo.Type == ProductDirectory {
+		return u.processProductImages(dirInfo.SKU, dirInfo.Images, result)
+	} else {
+		return u.processVariantImages(ctx, dirInfo.SKU, dirInfo.Images, result)
+	}
 }
 
 // cleanupExistingImages removes all existing images for a SKU from both Azure and database
-func (u *ImageUploader) cleanupExistingImages(ctx context.Context, productID int64, sku string) error {
+func (u *ImageUploader) cleanupExistingImages(ctx context.Context, entityID int64, sku string, entityType string) error {
 	blobPrefix := sku + "/"
 
 	if u.dryRun {
@@ -224,12 +383,12 @@ func (u *ImageUploader) cleanupExistingImages(ctx context.Context, productID int
 		}
 
 		if len(blobNames) > 0 {
-			u.logger.Infof("[DRY RUN] Would delete %d existing images for SKU %s:", len(blobNames), sku)
+			u.logger.Infof("[DRY RUN] Would delete %d existing images for %s %s:", len(blobNames), entityType, sku)
 			for _, blobName := range blobNames {
 				u.logger.Infof("[DRY RUN]   - %s", blobName)
 			}
 		} else {
-			u.logger.Infof("[DRY RUN] No existing images found for SKU %s", sku)
+			u.logger.Infof("[DRY RUN] No existing images found for %s %s", entityType, sku)
 		}
 		return nil
 	}
@@ -241,33 +400,33 @@ func (u *ImageUploader) cleanupExistingImages(ctx context.Context, productID int
 	}
 
 	if deletedCount > 0 {
-		u.logger.Infof("Deleted %d existing images from Azure for SKU %s", deletedCount, sku)
+		u.logger.Infof("Deleted %d existing images from Azure for %s %s", deletedCount, entityType, sku)
 
-		// Clean up database records for this product's images
-		err = u.cleanupDatabaseRecords(ctx, productID)
+		// Clean up database records for this entity's images
+		err = u.cleanupDatabaseRecords(ctx, entityID, entityType)
 		if err != nil {
-			u.logger.Warnf("Failed to cleanup database records for product ID %d: %v", productID, err)
+			u.logger.Warnf("Failed to cleanup database records for %s ID %d: %v", entityType, entityID, err)
 			// Don't fail the entire process for database cleanup issues
 		}
 	} else {
-		u.logger.Infof("No existing images found for SKU %s", sku)
+		u.logger.Infof("No existing images found for %s %s", entityType, sku)
 	}
 
 	return nil
 }
 
-// cleanupDatabaseRecords removes image records from the database for a product
-func (u *ImageUploader) cleanupDatabaseRecords(ctx context.Context, productID int64) error {
+// cleanupDatabaseRecords removes image records from the database for an entity
+func (u *ImageUploader) cleanupDatabaseRecords(ctx context.Context, entityID int64, entityType string) error {
 	tx, err := u.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Get image IDs that belong to this product
+	// Get image IDs that belong to this entity
 	var imageIDs []int64
-	query := `SELECT image_id FROM image_entities WHERE entity_id = $1 AND entity_type = 'product'`
-	err = tx.SelectContext(ctx, &imageIDs, query, productID)
+	query := `SELECT image_id FROM image_entities WHERE entity_id = $1 AND entity_type = $2`
+	err = tx.SelectContext(ctx, &imageIDs, query, entityID, entityType)
 	if err != nil {
 		return fmt.Errorf("failed to get image IDs: %w", err)
 	}
@@ -277,8 +436,8 @@ func (u *ImageUploader) cleanupDatabaseRecords(ctx context.Context, productID in
 	}
 
 	// Delete from image_entities first (foreign key constraint)
-	deleteEntitiesQuery := `DELETE FROM image_entities WHERE entity_id = $1 AND entity_type = 'product'`
-	_, err = tx.ExecContext(ctx, deleteEntitiesQuery, productID)
+	deleteEntitiesQuery := `DELETE FROM image_entities WHERE entity_id = $1 AND entity_type = $2`
+	_, err = tx.ExecContext(ctx, deleteEntitiesQuery, entityID, entityType)
 	if err != nil {
 		return fmt.Errorf("failed to delete image entities: %w", err)
 	}
@@ -297,7 +456,7 @@ func (u *ImageUploader) cleanupDatabaseRecords(ctx context.Context, productID in
 		return fmt.Errorf("failed to commit cleanup transaction: %w", err)
 	}
 
-	u.logger.Debugf("Cleaned up %d database records for product ID %d", len(imageIDs), productID)
+	u.logger.Debugf("Cleaned up %d database records for %s ID %d", len(imageIDs), entityType, entityID)
 	return nil
 }
 
@@ -307,8 +466,8 @@ func (u *ImageUploader) processProductImages(sku string, imagePaths []string, re
 
 	// Check if product exists using raw SQL query
 	var product struct {
-		ID   int64  `db:"id"`
-		Name string `db:"name"`
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
 	}
 
 	query := `SELECT id, name FROM products WHERE sku = $1 LIMIT 1`
@@ -316,6 +475,7 @@ func (u *ImageUploader) processProductImages(sku string, imagePaths []string, re
 	if err != nil {
 		u.logger.Warnf("Product with SKU %s not found, skipping %d images", sku, len(imagePaths))
 		result.SkippedImages += len(imagePaths)
+		result.SkippedProductImages += len(imagePaths)
 		return nil
 	}
 
@@ -323,9 +483,9 @@ func (u *ImageUploader) processProductImages(sku string, imagePaths []string, re
 
 	// Clean up existing images if requested
 	if u.cleanFirst {
-		err = u.cleanupExistingImages(ctx, product.ID, sku)
+		err = u.cleanupExistingImages(ctx, product.ID, sku, "product")
 		if err != nil {
-			return fmt.Errorf("failed to cleanup existing images for SKU %s: %w", sku, err)
+			return fmt.Errorf("failed to cleanup existing images for product SKU %s: %w", sku, err)
 		}
 	}
 
@@ -336,32 +496,94 @@ func (u *ImageUploader) processProductImages(sku string, imagePaths []string, re
 			u.logger.Errorf("Cannot access image file %s: %v", imagePath, err)
 			result.Errors = append(result.Errors, fmt.Errorf("file access %s: %w", imagePath, err))
 			result.SkippedImages++
+			result.SkippedProductImages++
 			continue
 		}
 
 		result.TotalSizeBytes += fileInfo.Size()
 
 		if u.dryRun {
-			u.logger.Infof("[DRY RUN] Would upload: %s (%.2f KB)", filepath.Base(imagePath), float64(fileInfo.Size())/1024)
+			u.logger.Infof("[DRY RUN] Would upload product image: %s (%.2f KB)", filepath.Base(imagePath), float64(fileInfo.Size())/1024)
 			result.UploadedImages++
+			result.UploadedProductImages++
 			continue
 		}
 
-		err = u.processImage(ctx, product.ID, sku, imagePath, i)
+		err = u.processImage(ctx, product.ID, sku, imagePath, i, "product")
 		if err != nil {
-			u.logger.Errorf("Failed to process image %s: %v", imagePath, err)
-			result.Errors = append(result.Errors, fmt.Errorf("image %s: %w", imagePath, err))
+			u.logger.Errorf("Failed to process product image %s: %v", imagePath, err)
+			result.Errors = append(result.Errors, fmt.Errorf("product image %s: %w", imagePath, err))
 			result.SkippedImages++
+			result.SkippedProductImages++
 			continue
 		}
 		result.UploadedImages++
+		result.UploadedProductImages++
+	}
+
+	return nil
+}
+
+// processVariantImages processes all images for a single product variant SKU
+func (u *ImageUploader) processVariantImages(ctx context.Context, sku string, imagePaths []string, result *UploadResult) error {
+	// Check if variant exists using raw SQL query
+	var variant VariantInfo
+	query := `SELECT id, product_id, name FROM product_variants WHERE sku = $1 LIMIT 1`
+	err := u.db.GetContext(ctx, &variant, query, sku)
+	if err != nil {
+		u.logger.Warnf("Product variant with SKU %s not found, skipping %d images", sku, len(imagePaths))
+		result.SkippedImages += len(imagePaths)
+		result.SkippedVariantImages += len(imagePaths)
+		return nil
+	}
+
+	u.logger.Infof("Processing %d images for variant '%s' (SKU: %s, ID: %d)", len(imagePaths), variant.Name, sku, variant.ID)
+
+	// Clean up existing images if requested
+	if u.cleanFirst {
+		err = u.cleanupExistingImages(ctx, variant.ID, sku, "product_variant")
+		if err != nil {
+			return fmt.Errorf("failed to cleanup existing images for variant SKU %s: %w", sku, err)
+		}
+	}
+
+	// Process each image
+	for i, imagePath := range imagePaths {
+		fileInfo, err := os.Stat(imagePath)
+		if err != nil {
+			u.logger.Errorf("Cannot access image file %s: %v", imagePath, err)
+			result.Errors = append(result.Errors, fmt.Errorf("file access %s: %w", imagePath, err))
+			result.SkippedImages++
+			result.SkippedVariantImages++
+			continue
+		}
+
+		result.TotalSizeBytes += fileInfo.Size()
+
+		if u.dryRun {
+			u.logger.Infof("[DRY RUN] Would upload variant image: %s (%.2f KB)", filepath.Base(imagePath), float64(fileInfo.Size())/1024)
+			result.UploadedImages++
+			result.UploadedVariantImages++
+			continue
+		}
+
+		err = u.processImage(ctx, variant.ID, sku, imagePath, i, "product_variant")
+		if err != nil {
+			u.logger.Errorf("Failed to process variant image %s: %v", imagePath, err)
+			result.Errors = append(result.Errors, fmt.Errorf("variant image %s: %w", imagePath, err))
+			result.SkippedImages++
+			result.SkippedVariantImages++
+			continue
+		}
+		result.UploadedImages++
+		result.UploadedVariantImages++
 	}
 
 	return nil
 }
 
 // processImage processes a single image file
-func (u *ImageUploader) processImage(ctx context.Context, productID int64, sku, imagePath string, sortOrder int) error {
+func (u *ImageUploader) processImage(ctx context.Context, entityID int64, sku, imagePath string, sortOrder int, entityType string) error {
 	// Open the image file
 	file, err := os.Open(imagePath)
 	if err != nil {
@@ -374,7 +596,7 @@ func (u *ImageUploader) processImage(ctx context.Context, productID int64, sku, 
 	newFileName := u.generateNanoID() + ext
 	blobName := fmt.Sprintf("%s/%s", sku, newFileName)
 
-	u.logger.Debugf("Uploading %s as %s", filepath.Base(imagePath), blobName)
+	u.logger.Debugf("Uploading %s as %s (entity_type: %s)", filepath.Base(imagePath), blobName, entityType)
 
 	// Upload to Azure Blob Storage
 	publicURL, err := u.azureClient.UploadProductImage(ctx, blobName, file)
@@ -398,16 +620,15 @@ func (u *ImageUploader) processImage(ctx context.Context, productID int64, sku, 
 	}
 
 	// Step 2: Insert into image_entities table
-	altText := fmt.Sprintf("Product image for %s", sku)
+	altText := fmt.Sprintf("%s image for %s", strings.Title(strings.Replace(entityType, "_", " ", -1)), sku)
 	isPrimary := sortOrder == 0 // First image is primary
-	entityType := "product"
 
 	entityInsertQuery := `
 		INSERT INTO image_entities (entity_id, image_id, alt_text, is_primary, sort_order, entity_type)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
-	_, err = tx.ExecContext(ctx, entityInsertQuery, productID, imageID, altText, isPrimary, sortOrder, entityType)
+	_, err = tx.ExecContext(ctx, entityInsertQuery, entityID, imageID, altText, isPrimary, sortOrder, entityType)
 	if err != nil {
 		return fmt.Errorf("failed to insert into image_entities table: %w", err)
 	}
@@ -418,7 +639,7 @@ func (u *ImageUploader) processImage(ctx context.Context, productID int64, sku, 
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	u.logger.Debugf("Successfully processed image: %s -> %s (image_id: %d)", filepath.Base(imagePath), publicURL, imageID)
+	u.logger.Debugf("Successfully processed %s image: %s -> %s (image_id: %d)", entityType, filepath.Base(imagePath), publicURL, imageID)
 	return nil
 }
 
@@ -453,6 +674,14 @@ func Upload(uploader *ImageUploader) {
 		fmt.Println()
 		fmt.Println("Flags:")
 		flag.PrintDefaults()
+		fmt.Println()
+		fmt.Println("Directory Structure:")
+		fmt.Println("  product-sku/          # Product images")
+		fmt.Println("    image1.jpg")
+		fmt.Println("    image2.png")
+		fmt.Println("  product-sku-variant/  # Variant images (must have matching parent SKU)")
+		fmt.Println("    variant1.jpg")
+		fmt.Println("    variant2.png")
 		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  go run scripts/upload_image.go ./images")
@@ -491,8 +720,13 @@ func Upload(uploader *ImageUploader) {
 		fmt.Printf("🔍 DRY RUN MODE - No actual changes were made\n")
 	}
 	fmt.Printf("Processed Products: %d\n", result.ProcessedProducts)
-	fmt.Printf("Uploaded Images: %d\n", result.UploadedImages)
-	fmt.Printf("Skipped Images: %d\n", result.SkippedImages)
+	fmt.Printf("Processed Variants: %d\n", result.ProcessedVariants)
+	fmt.Printf("Total Uploaded Images: %d\n", result.UploadedImages)
+	fmt.Printf("  - Product Images: %d\n", result.UploadedProductImages)
+	fmt.Printf("  - Variant Images: %d\n", result.UploadedVariantImages)
+	fmt.Printf("Total Skipped Images: %d\n", result.SkippedImages)
+	fmt.Printf("  - Product Images: %d\n", result.SkippedProductImages)
+	fmt.Printf("  - Variant Images: %d\n", result.SkippedVariantImages)
 	fmt.Printf("Total Size: %.2f MB\n", float64(result.TotalSizeBytes)/(1024*1024))
 	fmt.Printf("Errors: %d\n", len(result.Errors))
 

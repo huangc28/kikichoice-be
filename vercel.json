@@ -27,6 +27,10 @@
     {
       "source": "/v1/products/:uuid",
       "destination": "/api/go/entries/products/core"
+    },
+    {
+      "source": "/v1/products/:uuid/variants",
+      "destination": "/api/go/entries/products/core"
     }
   ]
 }

@@ -183,3 +183,51 @@ func (dao *ProductDAO) GetProductByUUID(ctx context.Context, uuid string) (*Prod
 		Variants:    variants,
 	}, nil
 }
+
+func (dao *ProductDAO) GetProductVariantsByUUID(ctx context.Context, productUUID string) ([]ProductVariantWithImage, error) {
+	// First verify the product exists and is available for sale
+	productQuery := `SELECT id FROM products WHERE uuid = $1 AND ready_for_sale = true`
+	var productID int64
+	err := dao.db.Get(&productID, productQuery, productUUID)
+	if err != nil {
+		// Return error only if product doesn't exist or database error
+		return nil, err
+	}
+
+	// Get product variants with their primary images
+	variantsQuery := `
+		SELECT
+			pv.id,
+			pv.product_id,
+			pv.name,
+			pv.stock_count,
+			pv.reserved_count,
+			pv.sku,
+			pv.price,
+			pv.uuid,
+			pv.created_at,
+			pv.updated_at,
+			COALESCE(img.url, '') as image_url
+		FROM product_variants pv
+		LEFT JOIN (
+			SELECT DISTINCT ON (ie.entity_id)
+				ie.entity_id,
+				i.url
+			FROM image_entities ie
+			JOIN images i ON ie.image_id = i.id
+			WHERE ie.entity_type = 'product_variant' AND ie.is_primary = true
+			ORDER BY ie.entity_id, ie.sort_order
+		) img ON pv.id = img.entity_id
+		WHERE pv.product_id = $1
+		ORDER BY pv.name
+	`
+
+	var variants []ProductVariantWithImage
+	err = dao.db.Select(&variants, variantsQuery, productID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return empty slice if no variants found - this is not an error
+	return variants, nil
+}

@@ -10,6 +10,10 @@ Content-Type: application/json
 GET {{API_URL}}/v1/products/JNIWQxt_WEDRkGxx
 Content-Type: application/json
 
+### Get Product Variants by UUID
+GET {{API_URL}}/v1/products/JNIWQxt_WEDRkGxx/variants
+Content-Type: application/json
+
 ### Response Example:
 # {
 #   "products": [
@@ -73,9 +77,45 @@ Content-Type: application/json
 #       "sku": "PROD-001-RED-L",
 #       "stock_count": 25,
 #       "image_url": "https://example.com/variant-image.jpg",
-#       "price": "29.99"
+#       "price": "29.99",
+#       "uuid": "variant-uuid-here"
 #     }
 #   ]
+# }
+
+### Product Variants Response Example:
+# {
+#   "variants": [
+#     {
+#       "name": "Small Size",
+#       "sku": "PROD-001-S",
+#       "stock_count": 10,
+#       "image_url": "https://example.com/variant-small.jpg",
+#       "price": "25.99",
+#       "uuid": "variant-uuid-1"
+#     },
+#     {
+#       "name": "Medium Size",
+#       "sku": "PROD-001-M",
+#       "stock_count": 15,
+#       "image_url": "https://example.com/variant-medium.jpg",
+#       "price": "29.99",
+#       "uuid": "variant-uuid-2"
+#     },
+#     {
+#       "name": "Large Size",
+#       "sku": "PROD-001-L",
+#       "stock_count": 8,
+#       "image_url": "https://example.com/variant-large.jpg",
+#       "price": "35.99",
+#       "uuid": "variant-uuid-3"
+#     }
+#   ]
+# }
+
+### Product Variants Response (No Variants):
+# {
+#   "variants": []
 # }
 
 ### Query Parameters:
@@ -84,5 +124,5 @@ Content-Type: application/json
 
 ### Error Responses:
 # 400 Bad Request - Invalid query parameters
-# 404 Not Found - Product not found
-# 500 Internal Server Error - Server error when fetching products
+# 404 Not Found - Product not found or not ready for sale
+# 500 Internal Server Error - Server error when fetching products or variants
