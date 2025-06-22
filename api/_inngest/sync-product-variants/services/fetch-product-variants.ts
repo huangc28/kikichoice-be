@@ -19,11 +19,28 @@ export const fetchProductVariantsFromSheet = async () => {
 };
 
 function transformRowToProductVariant(row: string[]): ProductVariant {
+  const stockAdjustValue = (row[3] || "").trim();
+  let stockAdjustCount = 0;
+
+  if (stockAdjustValue !== "") {
+    const parsed = parseInt(stockAdjustValue);
+    stockAdjustCount = isNaN(parsed) ? 0 : parsed;
+  }
+
+  // Add debug logging for negative numbers to help with troubleshooting
+  if (stockAdjustCount < 0) {
+    console.info(
+      `📉 Negative stock adjustment detected: SKU ${
+        (row[1] || "").trim()
+      }, adjustment: ${stockAdjustCount}`,
+    );
+  }
+
   return {
     parent_sku: (row[0] || "").trim(),
     sku: (row[1] || "").trim(),
     name: (row[2] || "").trim(),
-    stock_adjust_count: parseInt((row[3] || "0").trim()) || 0,
+    stock_adjust_count: stockAdjustCount,
     price: parseFloat((row[5] || "0").trim()) || 0,
   };
 }

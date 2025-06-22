@@ -22,6 +22,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 			products.NewProductDAO,
 		),
 		fx.Provide(
+			router.AsRoute(products.NewHotSellingHandler),
 			router.AsRoute(products.NewProductsListHandler),
 			router.AsRoute(products.NewProductDetailHandler),
 			router.AsRoute(products.NewProductVariantsListHandler),

@@ -17,7 +17,7 @@
       "destination": "/api/go/entries/telegram/core"
     },
     {
-      "source": "/v1/main-page",
+      "source": "/v1/products/hot-selling",
       "destination": "/api/go/entries/products/core"
     },
     {
