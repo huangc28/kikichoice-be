@@ -11,6 +11,89 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AddressKind string
+
+const (
+	AddressKindShipping AddressKind = "shipping"
+	AddressKindBilling  AddressKind = "billing"
+)
+
+func (e *AddressKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AddressKind(s)
+	case string:
+		*e = AddressKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AddressKind: %T", src)
+	}
+	return nil
+}
+
+type NullAddressKind struct {
+	AddressKind AddressKind `json:"address_kind"`
+	Valid       bool        `json:"valid"` // Valid is true if AddressKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAddressKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.AddressKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AddressKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAddressKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AddressKind), nil
+}
+
+type AuthProvider string
+
+const (
+	AuthProviderClerk AuthProvider = "clerk"
+)
+
+func (e *AuthProvider) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuthProvider(s)
+	case string:
+		*e = AuthProvider(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuthProvider: %T", src)
+	}
+	return nil
+}
+
+type NullAuthProvider struct {
+	AuthProvider AuthProvider `json:"auth_provider"`
+	Valid        bool         `json:"valid"` // Valid is true if AuthProvider is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuthProvider) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuthProvider, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuthProvider.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuthProvider) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuthProvider), nil
+}
+
 type EntityType string
 
 const (
@@ -53,6 +136,204 @@ func (ns NullEntityType) Value() (driver.Value, error) {
 	return string(ns.EntityType), nil
 }
 
+type OrderStatus string
+
+const (
+	OrderStatusPendingPayment OrderStatus = "pending_payment"
+	OrderStatusPaid           OrderStatus = "paid"
+	OrderStatusProcessing     OrderStatus = "processing"
+	OrderStatusShipped        OrderStatus = "shipped"
+	OrderStatusDelivered      OrderStatus = "delivered"
+	OrderStatusCanceled       OrderStatus = "canceled"
+	OrderStatusRefunded       OrderStatus = "refunded"
+)
+
+func (e *OrderStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OrderStatus(s)
+	case string:
+		*e = OrderStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OrderStatus: %T", src)
+	}
+	return nil
+}
+
+type NullOrderStatus struct {
+	OrderStatus OrderStatus `json:"order_status"`
+	Valid       bool        `json:"valid"` // Valid is true if OrderStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOrderStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.OrderStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OrderStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOrderStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OrderStatus), nil
+}
+
+type PaymentStatus string
+
+const (
+	PaymentStatusInitiated  PaymentStatus = "initiated"
+	PaymentStatusAuthorized PaymentStatus = "authorized"
+	PaymentStatusCaptured   PaymentStatus = "captured"
+	PaymentStatusFailed     PaymentStatus = "failed"
+	PaymentStatusRefunded   PaymentStatus = "refunded"
+)
+
+func (e *PaymentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PaymentStatus(s)
+	case string:
+		*e = PaymentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PaymentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullPaymentStatus struct {
+	PaymentStatus PaymentStatus `json:"payment_status"`
+	Valid         bool          `json:"valid"` // Valid is true if PaymentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPaymentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.PaymentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PaymentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPaymentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PaymentStatus), nil
+}
+
+type ShippingStatus string
+
+const (
+	ShippingStatusPendingLabel   ShippingStatus = "pending_label"
+	ShippingStatusLabelPurchased ShippingStatus = "label_purchased"
+	ShippingStatusInTransit      ShippingStatus = "in_transit"
+	ShippingStatusOutForDelivery ShippingStatus = "out_for_delivery"
+	ShippingStatusDelivered      ShippingStatus = "delivered"
+	ShippingStatusDeliveryFailed ShippingStatus = "delivery_failed"
+	ShippingStatusReturned       ShippingStatus = "returned"
+)
+
+func (e *ShippingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShippingStatus(s)
+	case string:
+		*e = ShippingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShippingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullShippingStatus struct {
+	ShippingStatus ShippingStatus `json:"shipping_status"`
+	Valid          bool           `json:"valid"` // Valid is true if ShippingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShippingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShippingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShippingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShippingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShippingStatus), nil
+}
+
+type StatusActor string
+
+const (
+	StatusActorSystem   StatusActor = "system"
+	StatusActorCustomer StatusActor = "customer"
+	StatusActorStaff    StatusActor = "staff"
+	StatusActorWebhook  StatusActor = "webhook"
+)
+
+func (e *StatusActor) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StatusActor(s)
+	case string:
+		*e = StatusActor(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StatusActor: %T", src)
+	}
+	return nil
+}
+
+type NullStatusActor struct {
+	StatusActor StatusActor `json:"status_actor"`
+	Valid       bool        `json:"valid"` // Valid is true if StatusActor is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStatusActor) Scan(value interface{}) error {
+	if value == nil {
+		ns.StatusActor, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StatusActor.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStatusActor) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StatusActor), nil
+}
+
+type Address struct {
+	ID            int64              `json:"id"`
+	Kind          AddressKind        `json:"kind"`
+	Name          string             `json:"name"`
+	Phone         pgtype.Text        `json:"phone"`
+	AddressLine1  string             `json:"address_line_1"`
+	AddressLine2  pgtype.Text        `json:"address_line_2"`
+	City          string             `json:"city"`
+	StateProvince pgtype.Text        `json:"state_province"`
+	PostalCode    string             `json:"postal_code"`
+	Country       string             `json:"country"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Image struct {
 	ID        int64              `json:"id"`
 	Url       string             `json:"url"`
@@ -70,6 +351,49 @@ type ImageEntity struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	ImageID    int64              `json:"image_id"`
 	EntityType EntityType         `json:"entity_type"`
+}
+
+type Order struct {
+	ID            int64              `json:"id"`
+	OrderNumber   int64              `json:"order_number"`
+	Status        OrderStatus        `json:"status"`
+	Currency      string             `json:"currency"`
+	Subtotal      pgtype.Numeric     `json:"subtotal"`
+	DiscountTotal pgtype.Numeric     `json:"discount_total"`
+	ShippingTotal pgtype.Numeric     `json:"shipping_total"`
+	TaxTotal      pgtype.Numeric     `json:"tax_total"`
+	GrandTotal    pgtype.Numeric     `json:"grand_total"`
+	Email         string             `json:"email"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OrderItem struct {
+	ID        int64          `json:"id"`
+	OrderID   int64          `json:"order_id"`
+	ProductID int64          `json:"product_id"`
+	VariantID pgtype.Int8    `json:"variant_id"`
+	Name      string         `json:"name"`
+	ImageUrl  pgtype.Text    `json:"image_url"`
+	UnitPrice pgtype.Numeric `json:"unit_price"`
+	Quantity  int32          `json:"quantity"`
+	LineTotal pgtype.Numeric `json:"line_total"`
+	Metadata  []byte         `json:"metadata"`
+}
+
+type Payment struct {
+	ID               int64              `json:"id"`
+	OrderID          int64              `json:"order_id"`
+	Provider         string             `json:"provider"`
+	ProviderTxnID    pgtype.Text        `json:"provider_txn_id"`
+	Status           PaymentStatus      `json:"status"`
+	Currency         string             `json:"currency"`
+	AmountAuthorized pgtype.Numeric     `json:"amount_authorized"`
+	AmountCaptured   pgtype.Numeric     `json:"amount_captured"`
+	CapturedAt       pgtype.Timestamptz `json:"captured_at"`
+	RawResponse      []byte             `json:"raw_response"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Product struct {
@@ -114,13 +438,36 @@ type ProductVariant struct {
 	Uuid          pgtype.Text        `json:"uuid"`
 }
 
+type Shipment struct {
+	ID             int64              `json:"id"`
+	OrderID        int64              `json:"order_id"`
+	AddressID      int64              `json:"address_id"`
+	Status         ShippingStatus     `json:"status"`
+	Carrier        string             `json:"carrier"`
+	ServiceLevel   string             `json:"service_level"`
+	TrackingNumber pgtype.Text        `json:"tracking_number"`
+	TrackingUrl    pgtype.Text        `json:"tracking_url"`
+	ShippingCost   pgtype.Numeric     `json:"shipping_cost"`
+	InsuranceCost  pgtype.Numeric     `json:"insurance_cost"`
+	WeightKg       pgtype.Numeric     `json:"weight_kg"`
+	DimensionsCm   []byte             `json:"dimensions_cm"`
+	Eta            pgtype.Timestamptz `json:"eta"`
+	ShippedAt      pgtype.Timestamptz `json:"shipped_at"`
+	DeliveredAt    pgtype.Timestamptz `json:"delivered_at"`
+	CarrierPayload []byte             `json:"carrier_payload"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type User struct {
-	ID        int64              `json:"id"`
-	Name      string             `json:"name"`
-	Email     string             `json:"email"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+	ID             int64              `json:"id"`
+	Name           string             `json:"name"`
+	Email          pgtype.Text        `json:"email"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	AuthProvider   NullAuthProvider   `json:"auth_provider"`
+	AuthProviderID pgtype.Text        `json:"auth_provider_id"`
 }
 
 type UserSession struct {

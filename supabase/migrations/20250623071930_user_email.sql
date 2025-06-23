@@ -1,0 +1,1 @@
+ALTER TABLE users ALTER column email DROP NOT NULL;

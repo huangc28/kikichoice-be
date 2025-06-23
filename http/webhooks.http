@@ -1,0 +1,85 @@
+### Test Clerk User Created Webhook
+
+POST http://localhost:3000/v1/webhooks/clerk/create-user
+Content-Type: application/json
+
+{
+  "data": {
+    "id": "user_29w83sxmDNGwOuEthce5gg56FcC",
+    "first_name": "John",
+    "last_name": "Doe",
+    "email_addresses": [
+      {
+        "email_address": "john.doe@example.org",
+        "id": "idn_29w83yL7CwVlJXylYLxcslromF1",
+        "verification": {
+          "status": "verified",
+          "strategy": "ticket"
+        }
+      }
+    ],
+    "image_url": "https://img.clerk.com/xxxxxx",
+    "created_at": 1654012591514,
+    "updated_at": 1654012591835,
+    "external_id": "567772"
+  },
+  "instance_id": "ins_123",
+  "object": "event",
+  "timestamp": 1654012591835,
+  "type": "user.created"
+}
+
+### Test Clerk User Created Webhook (No Email)
+
+POST http://localhost:3000/v1/webhooks/clerk/create-user
+Content-Type: application/json
+
+{
+  "data": {
+    "id": "user_nomail123456789012345678",
+    "first_name": "Jane",
+    "last_name": "Smith",
+    "email_addresses": [],
+    "image_url": "https://img.clerk.com/yyyyyy",
+    "created_at": 1654012591514,
+    "updated_at": 1654012591835,
+    "external_id": "567773"
+  },
+  "instance_id": "ins_123",
+  "object": "event",
+  "timestamp": 1654012591835,
+  "type": "user.created"
+}
+
+### Test Clerk User Created Webhook (Minimal Data)
+
+POST http://localhost:3000/v1/webhooks/clerk/create-user
+Content-Type: application/json
+
+{
+  "data": {
+    "id": "user_minimal12345678901234567",
+    "email_addresses": [],
+    "created_at": 1654012591514,
+    "updated_at": 1654012591835
+  },
+  "instance_id": "ins_123",
+  "object": "event",
+  "timestamp": 1654012591835,
+  "type": "user.created"
+}
+
+### Test Unsupported Event Type
+
+POST http://localhost:3000/v1/webhooks/clerk/create-user
+Content-Type: application/json
+
+{
+  "data": {
+    "id": "user_29w83sxmDNGwOuEthce5gg56FcC"
+  },
+  "instance_id": "ins_123",
+  "object": "event",
+  "timestamp": 1654012591835,
+  "type": "user.updated"
+}

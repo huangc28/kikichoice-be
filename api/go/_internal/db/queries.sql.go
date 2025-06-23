@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -18,12 +20,55 @@ RETURNING id, name, email, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name  string      `json:"name"`
+	Email pgtype.Text `json:"email"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+type CreateUserRow struct {
+	ID        int64              `json:"id"`
+	Name      string             `json:"name"`
+	Email     pgtype.Text        `json:"email"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.Email)
+	var i CreateUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const createUserWithAuthProvider = `-- name: CreateUserWithAuthProvider :one
+INSERT INTO users
+  (name, email, auth_provider, auth_provider_id)
+VALUES
+  ($1, $2, $3, $4)
+RETURNING id, name, email, created_at, updated_at, deleted_at, auth_provider, auth_provider_id
+`
+
+type CreateUserWithAuthProviderParams struct {
+	Name           string           `json:"name"`
+	Email          pgtype.Text      `json:"email"`
+	AuthProvider   NullAuthProvider `json:"auth_provider"`
+	AuthProviderID pgtype.Text      `json:"auth_provider_id"`
+}
+
+func (q *Queries) CreateUserWithAuthProvider(ctx context.Context, arg CreateUserWithAuthProviderParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserWithAuthProvider,
+		arg.Name,
+		arg.Email,
+		arg.AuthProvider,
+		arg.AuthProviderID,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -32,6 +77,35 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.AuthProvider,
+		&i.AuthProviderID,
+	)
+	return i, err
+}
+
+const getUserByAuthProviderID = `-- name: GetUserByAuthProviderID :one
+SELECT id, name, email, created_at, updated_at, deleted_at, auth_provider, auth_provider_id
+FROM users
+WHERE auth_provider_id = $1 AND auth_provider = $2
+`
+
+type GetUserByAuthProviderIDParams struct {
+	AuthProviderID pgtype.Text      `json:"auth_provider_id"`
+	AuthProvider   NullAuthProvider `json:"auth_provider"`
+}
+
+func (q *Queries) GetUserByAuthProviderID(ctx context.Context, arg GetUserByAuthProviderIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByAuthProviderID, arg.AuthProviderID, arg.AuthProvider)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.AuthProvider,
+		&i.AuthProviderID,
 	)
 	return i, err
 }

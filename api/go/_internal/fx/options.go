@@ -15,5 +15,5 @@ var CoreConfigOptions = fx.Provide(
 	fx.Annotate(
 		db.NewSQLXPostgresDB,
 		fx.As(new(db.Conn)),
-	), // sql interface instance
+	),
 )
