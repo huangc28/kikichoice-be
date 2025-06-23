@@ -316,7 +316,7 @@ func (dao *ProductDAO) GetHotSellingProducts(ctx context.Context) ([]*Product, e
 			sort_priority ASC,
 			CASE WHEN sort_priority = 1 THEN sales_count END DESC,
 			CASE WHEN sort_priority = 2 THEN created_at END DESC
-		LIMIT 8
+		LIMIT 6
 	`
 
 	rows, err := dao.db.Queryx(query)
