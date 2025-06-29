@@ -1,91 +1,100 @@
-# Product Image Upload Tool
+# Image Upload Scripts
 
-This tool uploads product images from a local directory structure to Azure Blob Storage and creates corresponding database records.
+This directory contains scripts for uploading product images to Azure Blob Storage and managing image records in the database.
 
-## Features
+## Upload Image Script
 
-- Scans directory structure where folder names represent product SKUs
-- Uploads images to Azure Blob Storage maintaining directory hierarchy
-- Generates nanoid-based filenames to avoid conflicts
-- Creates database records linking images to products
-- Supports batch processing with detailed logging
-- **Dry-run mode** for testing without making changes
-- Graceful error handling with comprehensive reporting
-- File validation and size reporting
-- Command-line flags for better control
+The `upload_image.go` script processes images from a local directory, uploads them to Azure Blob Storage, and creates corresponding database records.
 
-## Directory Structure
+### Features
 
-The tool expects a directory structure like this:
+- **Dual Database Sync**: Upload images to Azure once and sync metadata to both production and local databases
+- **Directory Structure Recognition**: Automatically classifies directories as product or variant based on naming
+- **Batch Processing**: Process multiple products and variants in a single run
+- **Dry-Run Mode**: Preview changes without making actual modifications
+- **Clean-First Option**: Remove existing images before uploading new ones
+- **Comprehensive Error Handling**: Continue processing on individual failures
+- **Progress Reporting**: Detailed statistics and error reporting
 
-```
-images/
-├── PRODUCT-SKU-001/
-│   ├── image1.jpg
-│   ├── image2.png
-│   └── image3.webp
-├── PRODUCT-SKU-002/
-│   ├── front.jpg
-│   └── back.jpg
-└── PRODUCT-SKU-003/
-    └── main.jpeg
-```
+### Usage
 
-Where:
-- Each subdirectory name is a product SKU that exists in the `products` table
-- Supported image formats: `.jpg`, `.jpeg`, `.png`, `.webp`
-- The first image in each directory becomes the primary image (`is_primary = true`)
-- Empty files are automatically skipped
-- Non-image files are ignored
-
-## Usage
-
-### Basic Usage
+#### Basic Usage
 
 ```bash
-go run scripts/upload_image.go [flags] [path_to_images_directory]
-```
+# Upload images to production database only
+go run scripts/upload_image.go ./images
 
-### Command Line Flags
-
-- `--dry-run`: Run without making actual changes (test mode)
-- `--help`: Show help information
-
-### Examples
-
-```bash
-# Use default directory (./images)
-go run scripts/upload_image.go
-
-# Specify custom directory
-go run scripts/upload_image.go /path/to/product/images
-
-# Test run without making changes
+# Upload with dry-run (no actual changes)
 go run scripts/upload_image.go --dry-run ./images
 
-# Show help
-go run scripts/upload_image.go --help
-
-# Combine flags and path
-go run scripts/upload_image.go --dry-run /Users/username/Downloads/product-images
+# Clean existing images first
+go run scripts/upload_image.go --clean-first ./images
 ```
 
-### Using Makefile
+#### Local Database Sync
 
 ```bash
-# Quick upload with Makefile
+# Upload images and sync to local database
+LOCAL_DB_ENABLED=true \
+LOCAL_DB_HOST=localhost \
+LOCAL_DB_PORT=55322 \
+LOCAL_DB_USER=postgres \
+LOCAL_DB_PASSWORD=postgres \
+LOCAL_DB_NAME=postgres \
+go run scripts/upload_image.go --sync-local ./images
+
+# Dry-run with local sync preview
+LOCAL_DB_ENABLED=true \
+LOCAL_DB_HOST=localhost \
+LOCAL_DB_PORT=55322 \
+go run scripts/upload_image.go --dry-run --sync-local ./images
+
+# Clean and sync to both databases
+LOCAL_DB_ENABLED=true \
+LOCAL_DB_HOST=localhost \
+LOCAL_DB_PORT=55322 \
+go run scripts/upload_image.go --clean-first --sync-local ./images
+```
+
+#### Using Make Commands
+
+```bash
+# Upload images from current directory
+make upload/images
+
+# Upload images from custom path
 make upload/images PATH=./my-images
 
 # Show help for Makefile usage
 make upload/images/help
 ```
 
+## Command Line Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--dry-run` | Preview mode without making changes | `--dry-run` |
+| `--clean-first` | Remove existing images before upload | `--clean-first` |
+| `--sync-local` | Enable local database synchronization (requires LOCAL_DB_* env vars) | `--sync-local` |
+| `--help` | Show help information | `--help` |
+
+## Local Database Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `LOCAL_DB_ENABLED` | Enable local database sync | `false` | Yes (must be `true`) |
+| `LOCAL_DB_HOST` | Local database host | - | Yes |
+| `LOCAL_DB_PORT` | Local database port | `5432` | No |
+| `LOCAL_DB_USER` | Local database user | `postgres` | No |
+| `LOCAL_DB_PASSWORD` | Local database password | - | No |
+| `LOCAL_DB_NAME` | Local database name | `postgres` | No |
+
 ## Environment Variables
 
 Make sure you have the following environment variables set:
 
 ```bash
-# Database configuration
+# Database configuration (Production)
 export DB_HOST="your-db-host"
 export DB_PORT="5432"
 export DB_USER="your-db-user"
@@ -97,6 +106,30 @@ export AZURE_BLOB_STORAGE_ACCOUNT_NAME="your-storage-account"
 export AZURE_BLOB_STORAGE_KEY="your-storage-key"
 ```
 
+**Note**: Local database connection is configured via LOCAL_DB_* environment variables when using --sync-local flag.
+
+## Directory Structure
+
+The script expects images to be organized in directories named after their SKUs:
+
+```
+images/
+├── PRODUCT-SKU-001/          # Product images
+│   ├── image1.jpg
+│   ├── image2.png
+│   └── image3.webp
+├── PRODUCT-SKU-002/          # Another product
+│   └── main.jpg
+└── PRODUCT-SKU-001-variant/  # Variant images (parent: PRODUCT-SKU-001)
+    ├── variant1.jpg
+    └── variant2.png
+```
+
+### Supported Image Formats
+- `.jpg`, `.jpeg`
+- `.png`
+- `.webp`
+
 ## Dry-Run Mode
 
 Use the `--dry-run` flag to test the tool without making actual changes:
@@ -107,9 +140,10 @@ go run scripts/upload_image.go --dry-run ./images
 
 In dry-run mode, the tool will:
 - ✅ Scan and validate directory structure
-- ✅ Check product existence in database
+- ✅ Check product existence in databases
 - ✅ Validate image files
 - ✅ Calculate total file sizes
+- ✅ Preview local database sync operations
 - ❌ **NOT** upload images to Azure
 - ❌ **NOT** create database records
 
@@ -117,7 +151,53 @@ This is perfect for:
 - Testing directory structure
 - Validating product SKUs
 - Checking file sizes before upload
+- Verifying local database connectivity
 - Identifying potential issues
+
+## Local Database Sync
+
+The local database sync feature allows you to synchronize image records to your local development database while uploading to production Azure storage.
+
+### Key Benefits
+
+1. **Development Consistency**: Your local database has the same image URLs as production
+2. **Independent Operations**: Local sync failures don't affect production uploads
+3. **Flexible Configuration**: Enable/disable via command-line flags
+4. **Error Isolation**: Local database issues are logged but don't stop the process
+
+### Requirements
+
+- Local database must have the same schema as production
+- Products/variants must exist in local database with matching SKUs
+- Local database connection must be accessible
+
+### Common Local Database Configurations
+
+```bash
+# Supabase Local Development
+export LOCAL_DB_ENABLED=true
+export LOCAL_DB_HOST=localhost
+export LOCAL_DB_PORT=55322
+export LOCAL_DB_USER=postgres
+export LOCAL_DB_PASSWORD=postgres
+export LOCAL_DB_NAME=postgres
+
+# Docker PostgreSQL
+export LOCAL_DB_ENABLED=true
+export LOCAL_DB_HOST=localhost
+export LOCAL_DB_PORT=5432
+export LOCAL_DB_USER=myuser
+export LOCAL_DB_PASSWORD=mypassword
+export LOCAL_DB_NAME=mydatabase
+
+# Local PostgreSQL
+export LOCAL_DB_ENABLED=true
+export LOCAL_DB_HOST=localhost
+export LOCAL_DB_PORT=5432
+export LOCAL_DB_USER=postgres
+export LOCAL_DB_PASSWORD=localpass
+export LOCAL_DB_NAME=local_db
+```
 
 ## Azure Blob Storage Structure
 
@@ -138,98 +218,131 @@ Where each filename is a 12-character nanoid to ensure uniqueness.
 
 ## Database Records
 
-For each uploaded image, a record is created in the `product_images` table with:
+For each uploaded image, records are created in both production and local databases (if sync enabled):
 
-- `product_id`: Found by matching the directory name (SKU) to `products.sku`
+### `images` table
+- `id`: Auto-generated unique identifier
 - `url`: Public URL of the uploaded image
+- `created_at`, `updated_at`: Timestamps
+
+### `image_entities` table
+- `entity_id`: Product or variant ID (resolved by SKU in each database)
+- `image_id`: References the `images` table
 - `alt_text`: Generated description like "Product image for SKU-001"
-- `is_primary`: `true` for the first image in each directory, `false` for others
+- `is_primary`: `true` for the first image in each directory
 - `sort_order`: Order based on file processing sequence (0, 1, 2, ...)
+- `entity_type`: Either "product" or "product_variant"
 
 ## Error Handling
 
-The tool handles various error scenarios gracefully:
+The script provides comprehensive error handling:
 
-- **Missing products**: If a SKU doesn't exist in the database, images are skipped with a warning
-- **Upload failures**: Individual image upload failures don't stop the entire process
-- **Invalid files**: Non-image files and empty files are ignored
-- **Permission errors**: File access issues are logged and reported
-- **Directory validation**: Source path is validated before processing
+### Production Database Errors
+- **Fatal**: Process stops if production database operations fail
+- **Rollback**: Failed transactions are automatically rolled back
+- **Logging**: All errors are logged with context
 
-## Output
+### Local Database Errors
+- **Non-Fatal**: Local sync errors don't stop the process
+- **Warning**: Errors are logged as warnings
+- **Statistics**: Local sync error count is reported in summary
 
-The tool provides detailed logging during execution and a comprehensive summary report:
+### Azure Upload Errors
+- **Retry Logic**: Built into Azure SDK
+- **Detailed Logging**: Upload failures include file paths and sizes
+- **Continuation**: Process continues with other files
 
-### Regular Mode
+### File System Errors
+- **Validation**: Files are validated before processing
+- **Skip Invalid**: Invalid/corrupted files are skipped with warnings
+- **Size Limits**: Very large files are handled gracefully
+
+## Output Examples
+
+### Successful Upload with Local Sync
 ```
 === Upload Summary ===
-Processed Products: 5
-Uploaded Images: 23
-Skipped Images: 2
-Total Size: 15.67 MB
-Errors: 1
-
-Errors encountered:
-- SKU UNKNOWN-PRODUCT: Product with SKU UNKNOWN-PRODUCT not found, skipping images
+Processed Products: 2
+Processed Variants: 1
+Total Uploaded Images: 5
+  - Product Images: 4
+  - Variant Images: 1
+Total Skipped Images: 0
+  - Product Images: 0
+  - Variant Images: 0
+Total Size: 2.34 MB
+Errors: 0
+Local Database Sync: ✅ Enabled
 ```
 
 ### Dry-Run Mode
 ```
-=== Upload Summary ===
 🔍 DRY RUN MODE - No actual changes were made
-Processed Products: 5
-Uploaded Images: 23
-Skipped Images: 2
-Total Size: 15.67 MB
-Errors: 0
+[DRY RUN] Would upload product image: image1.jpg (245.67 KB)
+[DRY RUN] Would sync to local database: PRODUCT-SKU-001
 
 💡 Run without --dry-run flag to perform actual upload
 ```
 
-## Dependencies
+### Error Reporting
+```
+Local Database Sync: ✅ Enabled (⚠️ 2 sync errors)
 
-- Go 1.24+
-- Azure SDK for Go
-- PostgreSQL database with existing schema
-- Valid Azure Blob Storage account
-- nanoid library for unique ID generation
-
-## Logging
-
-The tool uses structured logging with different levels:
-- `INFO`: General progress information
-- `WARN`: Non-fatal issues like missing products
-- `ERROR`: Serious errors that prevent processing
-- `DEBUG`: Detailed operation information
-
-Set log level via environment: `export LOG_LEVEL=debug`
-
-## Tips
-
-1. **Always test first**: Use `--dry-run` to validate your setup before actual upload
-2. **Check SKUs**: Ensure all directory names match existing product SKUs in your database
-3. **File sizes**: Monitor the total size output to estimate upload time
-4. **Error logs**: Review any errors in the summary to fix issues
-5. **Incremental uploads**: The tool is idempotent-safe for re-running on the same directory
+Errors encountered:
+- variant SKU variant-not-found: variant with SKU variant-not-found not found in local database
+- product image corrupted.jpg: file access error
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **"directory does not exist"**: Check the path you provided exists
-2. **"Product with SKU X not found"**: Verify the SKU exists in your products table
-3. **Azure upload failures**: Check your Azure credentials and network connectivity
-4. **Database connection errors**: Verify your database environment variables
+1. **Local Database Connection Failed**
+   ```
+   Failed to connect to local database: connection refused
+   ```
+   - Check if local database is running
+   - Verify LOCAL_DB_* environment variables are set correctly
+   - Ensure network connectivity
 
-### Getting Help
+2. **SKU Not Found in Local Database**
+   ```
+   product with SKU PROD-001 not found: no rows in result set
+   ```
+   - Ensure products exist in local database
+   - Check SKU spelling and case sensitivity
+   - Verify database schema is up to date
+
+3. **Azure Upload Failures**
+   ```
+   failed to upload to Azure: authentication failed
+   ```
+   - Check Azure credentials in environment variables
+   - Verify storage account permissions
+   - Check network connectivity
+
+### Debug Mode
+
+Enable debug logging by setting the log level:
 
 ```bash
-# Show command help
-go run scripts/upload_image.go --help
-
-# Show Makefile help
-make upload/images/help
-
-# Check this documentation
-cat scripts/README.md
+export LOG_LEVEL=debug
+export LOCAL_DB_ENABLED=true
+export LOCAL_DB_HOST=localhost
+export LOCAL_DB_PORT=55322
+go run scripts/upload_image.go --sync-local ./images
 ```
+
+## Security Considerations
+
+1. **Database Credentials**: Never commit database URLs with credentials to version control
+2. **Azure Keys**: Store Azure storage keys securely in environment variables
+3. **Local Development**: Use separate credentials for local and production databases
+4. **Network Security**: Ensure secure connections to databases (SSL/TLS)
+
+## Performance Tips
+
+1. **Batch Size**: Process images in smaller batches for better memory usage
+2. **Network**: Use stable internet connection for Azure uploads
+3. **Database**: Ensure database connections are stable
+4. **File Size**: Optimize images before upload to reduce transfer time
